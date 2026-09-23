@@ -1,0 +1,628 @@
+:root {
+  --bg: #f6f1ea;
+  --card: #fffdf9;
+  --text: #2b2622;
+  --muted: #7a6f66;
+  --line: #e4dbcf;
+  --accent: #b4532a;
+  --accent-text: #ffffff;
+  --radius: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* Layout */
+.topbar,
+.tabs,
+main {
+  max-width: 560px;
+  margin: 0 auto;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: 20px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+  padding-bottom: 8px;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+.streak {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 8px;
+  padding-top: 16px;
+  padding-bottom: 8px;
+}
+
+.tab {
+  flex: 1;
+  min-height: 44px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+}
+
+.tab.is-active {
+  background: var(--card);
+  color: var(--text);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Cards */
+main {
+  padding-bottom: 48px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+.card h3 {
+  margin: 20px 0 8px;
+  font-size: 1rem;
+}
+
+/* Form */
+label {
+  display: block;
+  margin: 14px 0 6px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+textarea,
+select,
+input[type="text"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+}
+
+input[type="text"] {
+  margin-bottom: 8px;
+}
+textarea {
+  resize: vertical;
+}
+
+textarea:focus,
+select:focus,
+input:focus,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Buttons */
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.primary {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 16px;
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 0;
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+
+.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.status {
+  min-height: 1.4em;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Morning check list (items rendered by ui.js) */
+.check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.check-item {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.check-item:first-child {
+  border-top: 0;
+}
+
+.check-text {
+  margin: 0 0 8px;
+}
+
+.check-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.check-actions button {
+  flex: 1;
+  min-height: 44px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.check-actions button.is-selected {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+/* Week stats (rendered by ui.js) */
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.stat-row:first-of-type {
+  border-top: 0;
+}
+.stat-label {
+  color: var(--muted);
+}
+.stat-value {
+  font-weight: 600;
+}
+/* ---------- Icons ---------- */
+.icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Existing elements that now hold an icon */
+.streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.streak .icon {
+  color: var(--accent);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ---------- Form additions ---------- */
+.hint {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+input[type="time"] {
+  min-height: 44px;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+}
+
+input[type="time"]:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.priority-row {
+  display: grid;
+  grid-template-columns: 1fr 112px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.priority-row input[type="text"] {
+  margin-bottom: 0;
+}
+.priority-row input[type="time"] {
+  width: 100%;
+}
+
+/* ---------- Today's plan (items rendered by ui.js) ---------- */
+.plan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.plan-item {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.plan-item:first-child {
+  border-top: 0;
+}
+
+.plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.plan-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.plan-text {
+  margin: 0 0 10px;
+}
+.plan-item.is-done .plan-text {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.plan-meta {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.plan-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.plan-actions button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.plan-actions button.is-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+.plan-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Status badge: waiting | started | late | missed | done */
+.badge {
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.badge.is-late,
+.badge.is-missed {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.badge.is-done {
+  color: var(--text);
+  border-color: var(--text);
+}
+
+/* ---------- Week navigation ---------- */
+.week-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.week-title {
+  text-align: center;
+}
+.week-title h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.week-title p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* ---------- Day strip (7 cells) ---------- */
+.day-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.day-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.day-cell.is-today {
+  border-color: var(--accent);
+}
+.day-cell.is-future {
+  opacity: 0.45;
+}
+
+.day-name {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.day-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--accent-text);
+}
+
+.day-mark .icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 3;
+}
+
+.day-cell.is-filled .day-mark {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.day-score {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* ---------- Charts (CSS only, sizes set inline by ui.js) ---------- */
+.bar-row {
+  margin-bottom: 12px;
+}
+.bar-row:last-child {
+  margin-bottom: 0;
+}
+
+.bar-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+}
+
+.bar-count {
+  color: var(--muted);
+}
+
+.bar-track {
+  height: 10px;
+  background: var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.chart-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.day-chart {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.day-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.col-track {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 110px;
+  background: var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.col-fill {
+  width: 100%;
+  background: var(--accent);
+}
+
+.col-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.day-col.is-future {
+  opacity: 0.45;
+}
+
+/* Hakikisha `hidden` inashinda display nyingine */
+[hidden] { display: none !important; }
+
+/* Confirm block (ndani ya fomu ya usiku) */
+#confirm-block {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--border, #e4d9cc);
+  border-left: 3px solid var(--accent, #c2703d);
+  border-radius: 10px;
+  background: var(--surface-alt, #f7f1e8);
+}
+#confirm-block h3 { margin: 0 0 4px; font-size: 1rem; }
+
+/* Plan list: inatumika na Today's plan card na Confirm block */
+.plan-list { list-style: none; margin: 0; padding: 0; }
+.plan-item {
+  display: grid;
+  gap: 4px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border, #e4d9cc);
+}
+.plan-item:first-child { border-top: 0; }
+.plan-text { margin: 0; font-weight: 600; }
+.plan-meta { margin: 0; font-size: 0.85rem; color: var(--muted, #7a6a58); }
+.plan-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+
+.plan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border, #d9ccbb);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.plan-btn:hover { background: var(--surface-alt, #f0e8db); }
+.plan-btn .icon { width: 16px; height: 16px; }
+
+/* Hali za priority */
+.plan-item.is-done .plan-text { color: var(--muted, #7a6a58); }
+.confirm-msg { margin: 0; font-size: 0.9rem; color: var(--muted, #7a6a58); }
+
+#review-fields { border: 0; margin: 0; padding: 0; min-width: 0; }
+#review-fields:disabled { opacity: 0.45; }
+.plan-item.is-skipped,
+.plan-item.is-missed { opacity: 0.65; }
+.plan-item.is-late .plan-meta { color: var(--danger, #b4462f); }
+
+/* Ujumbe wa error */
+.status.is-error { color: var(--danger, #b4462f); }
