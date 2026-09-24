@@ -354,3 +354,20 @@ export function dayFacts(entries, dateKey, now) {
     })),
   };
 }
+// Every field of the night review must be filled before saving.
+export function validateReview(review) {
+  const missing = (label, focus) => ({ message: `Fill in ${label} first.`, focus });
+  if (!review.wins) return missing("what went well", "wins");
+  if (!review.challenges) return missing("what didn't go well", "challenges");
+  if (!review.lessons) return missing("what you learned", "lessons");
+  for (let i = 0; i < review.priorities.length; i++) {
+    const p = review.priorities[i];
+    if (!p.text) return missing(`priority ${i + 1}`, `p${i + 1}`);
+    if (!p.time) {
+      return { message: `Add a start time for priority ${i + 1}.`, focus: `t${i + 1}` };
+    }
+  }
+  return null;
+}
+// The final delete button unlocks only when the person types DELETE.
+export const isDeleteConfirmed = (text) => String(text).trim().toUpperCase() === "DELETE";

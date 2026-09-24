@@ -87,3 +87,19 @@ export async function requestInsight(type, key, facts) {
   missedAt.delete(idOf(type, key));
   return value;
 }
+// Deletes the person's own finished insight (RLS only lets them delete their own).
+// It does NOT give the period another try: the server usage log remembers it.
+export async function deleteInsight(type, key) {
+  if (!navigator.onLine) {
+    throw new InsightError("offline", "You need an internet connection to delete an insight.");
+  }
+  const { error } = await supabase
+    .from("insights")
+    .delete()
+    .eq("type", type)
+    .eq("period_key", key)
+    .eq("status", "done");
+  if (error) throw error;
+  found.delete(idOf(type, key));
+  missedAt.delete(idOf(type, key));
+}

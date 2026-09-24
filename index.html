@@ -4,10 +4,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MindLoop</title>
+    <title>MindLoop: 2-minute nightly review and daily plan</title>
+    <meta name="description"
+        content="MindLoop is a two-minute nightly review. Note your wins and challenges, plan tomorrow's three priorities with start times, and keep your streak.">
+    <link rel="canonical" href="https://mindloop.braxcode.com/">
+
+    <link rel="icon" href="favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="MindLoop">
+    <meta property="og:title" content="MindLoop: 2-minute nightly review">
+    <meta property="og:description"
+        content="Two minutes each night. Plan tomorrow's three priorities, then be honest about what you did.">
+    <meta property="og:url" content="https://mindloop.braxcode.com/">
+    <meta property="og:image" content="https://mindloop.braxcode.com/icons/icon-512.png">
+    <meta name="twitter:card" content="summary">
     <link rel="stylesheet" href="styles.css">
     <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f6f1ea">
+    <meta name="theme-color" content="#f6f1ea">
 </head>
 
 <body>
@@ -55,19 +72,24 @@
     <p id="app-error" class="status is-error" role="alert" hidden></p>
 
     <section id="welcome" class="welcome" hidden>
+        <img class="welcome-logo" src="icons/icon-192.png" width="96" height="96" alt="MindLoop logo">
         <h1>MindLoop</h1>
         <p>Two minutes each night. Write down tomorrow's three priorities, then be honest about what you did.</p>
         <button id="google-signin" class="primary" type="button">Continue with Google</button>
-<p class="welcome-note">
-    Your reviews are saved to your account and stay private to you. When you tap an AI insight button, that period's reviews are sent to an AI provider to write the insight.
-    By continuing you agree to the <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.
-</p>
+        <p class="welcome-note">
+            Your reviews are saved to your account and stay private to you. When you tap an AI insight button, that
+            period's reviews are sent to an AI provider to write the insight.
+            By continuing you agree to the <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.
+        </p>
     </section>
 
     <div id="app" hidden>
 
         <header class="topbar">
-            <h1>MindLoop</h1>
+            <h1>
+                <img class="brand-logo" src="icons/icon-192.png" width="32" height="32" alt="">
+                MindLoop
+            </h1>
             <p class="streak">
                 <svg class="icon">
                     <use href="#i-flame" />
@@ -75,7 +97,7 @@
                 <span id="streak-label"></span>
             </p>
         </header>
-<p id="sync-status" class="status" role="status" hidden></p>
+        <p id="sync-status" class="status" role="status" hidden></p>
 
         <nav class="tabs">
             <button class="tab is-active" data-view="today">
@@ -104,12 +126,12 @@
                 </div>
 
                 <div id="day-insight" class="card insight-card" hidden>
-    <h2>Today's insight</h2>
-    <div class="insight-body"></div>
-    <button class="primary insight-btn" type="button" hidden>Get today's insight</button>
-    <p class="status insight-status" role="status"></p>
-    <p class="hint">Written by AI from your reviews. It can be wrong.</p>
-</div>
+                    <h2>Today's insight</h2>
+                    <div class="insight-body"></div>
+                    <button class="primary insight-btn" type="button" hidden>Get today's insight</button>
+                    <p class="status insight-status" role="status"></p>
+                    <p class="hint">Written by AI from your reviews. It can be wrong.</p>
+                </div>
                 <!-- Night review -->
                 <form id="review-form" class="card">
                     <h2>Tonight's review</h2>
@@ -183,15 +205,16 @@
                 <div id="week-days" class="day-strip"></div>
 
                 <div id="week-stats" class="card"></div>
-<div id="week-insight" class="card insight-card" hidden>
-    <h2>Week insight</h2>
-    <div class="insight-body"></div>
-    <button class="primary insight-btn" type="button" hidden>Get week insight</button>
-    <p class="status insight-status" role="status"></p>
-    <p class="hint">Written by AI from your reviews. It can be wrong.</p>
-</div>
+                <div id="week-insight" class="card insight-card" hidden>
+                    <h2>Week insight</h2>
+                    <div class="insight-body"></div>
+                    <button class="primary insight-btn" type="button" hidden>Get week insight</button>
+                    <p class="status insight-status" role="status"></p>
+                    <p class="hint">Written by AI from your reviews. It can be wrong.</p>
+                </div>
                 <div class="card">
-                    <h2>Blockers</h2>
+                    <h2>Main blockers this week</h2>
+                    <p class="hint">The main reason you picked each night. One per day.</p>
                     <div id="reason-chart"></div>
                 </div>
 
@@ -210,17 +233,39 @@
                 <div class="card">
                     <h2>Your data</h2>
                     <p class="hint">Saved to your account.</p>
-                    <button id="export-data" class="plan-btn" type="button">Export JSON</button>
-                    <button id="delete-data" class="plan-btn" type="button">Delete all data</button>
-                    <button id="sign-out" class="plan-btn" type="button">Sign out</button>
+                    <div class="data-actions">
+                        <button id="delete-data" class="plan-btn" type="button">Delete all data</button>
+                    </div>
                     <p id="data-status" class="status" role="status"></p>
-                    <p class="hint"><a href="privacy.html">Privacy Policy</a> and <a href="terms.html">Terms</a></p>
+
+                    <div class="danger-zone">
+                        <h3>Delete account</h3>
+                        <p class="hint">Permanently deletes your account, all your reviews and AI insights. This cannot
+                            be undone.</p>
+                        <button id="account-open" class="plan-btn danger" type="button">Delete my account</button>
+                        <div id="account-confirm" hidden>
+                            <label for="account-phrase">Type DELETE to confirm</label>
+                            <input id="account-phrase" type="text" autocomplete="off" autocapitalize="characters"
+                                spellcheck="false">
+                            <div class="data-actions">
+                                <button id="account-cancel" class="plan-btn" type="button">Cancel</button>
+                                <button id="account-delete" class="plan-btn danger" type="button" disabled>Delete
+                                    forever</button>
+                            </div>
+                        </div>
+                        <p id="account-status" class="status" role="status"></p>
+                    </div>
+
+                    <div class="data-footer">
+                        <p class="hint"><a href="privacy.html">Privacy Policy</a> and <a href="terms.html">Terms</a></p>
+                        <button id="sign-out" class="plan-btn" type="button">Sign out</button>
+                    </div>
                 </div>
             </section>
         </main>
     </div>
 
-        <script type="module" src="js/ui.js"></script>
+    <script type="module" src="js/ui.js"></script>
 </body>
 
 </html>

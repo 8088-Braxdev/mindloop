@@ -1,7 +1,16 @@
 // js/ui.js  (part 1 of 2)
 // DOM only. Numbers come from logic.js, data from storage.js.
 
-import { getEntries, getEntry, saveEntry, markPriority, exportAll, clearAll, syncNow, hasPending, prepareSignOut } from "./storage.js";
+import {
+  getEntries,
+  getEntry,
+  saveEntry,
+  markPriority,
+  clearAll,
+  syncNow,
+  hasPending,
+  prepareSignOut,
+} from "./storage.js";
 import {
   toDateKey,
   computeStreak,
@@ -19,10 +28,19 @@ import {
   needsAnswer,
   weekFacts,
   dayFacts,
-  addDays
+  addDays,
+  validateReview,
+  isDeleteConfirmed,
 } from "./logic.js";
-import { getSession, signInWithGoogle, signOut, cachedUserId } from "./auth.js";
-import { getInsight, requestInsight, clearInsightCache, InsightError } from "./insights.js";
+import { getSession, signInWithGoogle, signOut } from "./auth.js";
+import { deleteAccount } from "./account.js";
+import {
+  getInsight,
+  requestInsight,
+  clearInsightCache,
+  InsightError,
+  deleteInsight,
+} from "./insights.js";
 
 let currentWeek = mondayOf(toDateKey(new Date()));
 let editing = false; // true = fomu ina review ya leo, inaeditiwa
@@ -45,28 +63,6 @@ function syncSubmitLabel() {
     : editing
       ? "Update review"
       : "Edit today's review";
-}
-
-function validate(review) {
-  const hasContent =
-    review.wins ||
-    review.challenges ||
-    review.lessons ||
-    review.priorities.some((p) => p.text);
-  if (!hasContent) {
-    return {
-      message: "Write at least one thing before saving.",
-      focus: "wins",
-    };
-  }
-  const i = review.priorities.findIndex((p) => p.text && !p.time);
-  if (i !== -1) {
-    return {
-      message: `Add a start time for priority ${i + 1}.`,
-      focus: `t${i + 1}`,
-    };
-  }
-  return null;
 }
 
 const HONESTY = {
@@ -165,7 +161,6 @@ function initTabs() {
   });
 }
 
-
 /* ---------- Streak label ---------- */
 
 function renderStreak(entries) {
@@ -249,7 +244,13 @@ function renderPlan(entries) {
 
 const RETRY_COOLDOWN_MS = 8000;
 // Errors where trying again cannot help: hide the button.
-const FINAL_ERRORS = new Set(["user_limit", "already_generated", "at_capacity", "no_data", "too_early"]);
+const FINAL_ERRORS = new Set([
+  "user_limit",
+  "already_generated",
+  "at_capacity",
+  "no_data",
+  "too_early",
+]);
 
 const textEl = (tag, text) => {
   const el = document.createElement(tag);
@@ -282,19 +283,67 @@ function fillInsight(body, insight, createdAt) {
     parts.push(note);
   }
   if (createdAt) {
-    const when = new Date(createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    const when = new Date(createdAt).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+    });
     const foot = textEl("p", `Written ${when}`);
     foot.className = "hint";
     parts.push(foot);
   }
   body.replaceChildren(...parts);
 }
+// "Delete this insight" with tap-again confirmation. Deleting does not give
+// the period another try: the server usage log remembers it.
+function addDeleteButton(card, opts) {
+  const body = card.querySelector(".insight-body");
+  const status = card.querySelector(".insight-status");
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "plan-btn insight-delete";
+  btn.textContent = "Delete this insight";
 
+  let armed = false;
+  const reset = () => {
+    armed = false;
+    btn.textContent = "Delete this insight";
+    status.textContent = "";
+  };
+
+  btn.addEventListener("click", async () => {
+    if (!armed) {
+      armed = true;
+      btn.textContent = "Tap again to confirm";
+      status.textContent =
+        "This cannot be undone, and this period will not get a new insight.";
+      setTimeout(reset, 4000);
+      return;
+    }
+    btn.disabled = true;
+    try {
+      await deleteInsight(opts.type, opts.key);
+      card.dataset.state = "deleted";
+      body.replaceChildren(textEl("p", "Insight deleted."));
+      status.textContent = "";
+    } catch (err) {
+      console.error("MindLoop: delete insight failed", err);
+      btn.disabled = false;
+      reset();
+      status.textContent =
+        err.message || "Could not delete the insight. Try again.";
+    }
+  });
+  body.append(btn);
+}
 // Shows a saved insight, or a button to ask for one. opts: { type, key, available, hint, facts }
 async function showInsight(card, opts) {
   const token = `${opts.type}:${opts.key}`;
   // Already showing this period's insight (or waiting for it): leave it alone.
-  if (card.dataset.showing === token && ["found", "busy"].includes(card.dataset.state)) return;
+  if (
+    card.dataset.showing === token &&
+    ["found", "busy", "deleted"].includes(card.dataset.state)
+  )
+    return;
 
   const body = card.querySelector(".insight-body");
   const btn = card.querySelector(".insight-btn");
@@ -317,6 +366,7 @@ async function showInsight(card, opts) {
   if (found) {
     fillInsight(body, found.insight, found.createdAt);
     card.dataset.state = "found";
+    addDeleteButton(card, opts);
     return;
   }
   if (!opts.available) {
@@ -327,16 +377,27 @@ async function showInsight(card, opts) {
   btn.hidden = false;
   btn.disabled = false;
   btn.onclick = async () => {
+    fillInsight(body, result.insight, result.createdAt);
+    addDeleteButton(card, opts);
+    card.dataset.state = "found";
     btn.disabled = true;
     card.dataset.state = "busy";
     status.textContent = "Checking your latest changes...";
     try {
       await syncNow().catch(() => {});
       if (hasPending()) {
-        throw new InsightError("syncing", "Your latest changes are still syncing. Try again in a moment.");
+        throw new InsightError(
+          "syncing",
+          "Your latest changes are still syncing. Try again in a moment.",
+        );
       }
-      status.textContent = "Writing your insight. This can take a few seconds...";
-      const result = await requestInsight(opts.type, opts.key, await opts.facts());
+      status.textContent =
+        "Writing your insight. This can take a few seconds...";
+      const result = await requestInsight(
+        opts.type,
+        opts.key,
+        await opts.facts(),
+      );
       if (card.dataset.showing !== token) return;
       fillInsight(body, result.insight, result.createdAt);
       card.dataset.state = "found";
@@ -346,7 +407,8 @@ async function showInsight(card, opts) {
       console.error("MindLoop: insight failed", err);
       if (card.dataset.showing !== token) return;
       card.dataset.state = "";
-      status.textContent = err.message || "Something went wrong. Try again in a moment.";
+      status.textContent =
+        err.message || "Something went wrong. Try again in a moment.";
       if (FINAL_ERRORS.has(err.code)) {
         btn.hidden = true;
       } else {
@@ -381,7 +443,10 @@ function renderWeekInsight(s) {
     type: "week",
     key: s.weekStart,
     available: s.daysFilled > 0 && (weekOver || sundayDone),
-    hint: s.daysFilled === 0 ? "No reviews this week." : "Available after Sunday's review.",
+    hint:
+      s.daysFilled === 0
+        ? "No reviews this week."
+        : "Available after Sunday's review.",
     facts: async () => weekFacts(await getEntries(), s.weekStart, new Date()),
   });
 }
@@ -394,8 +459,8 @@ async function refresh() {
   renderPlan(entries);
   renderConfirm(entries);
   if (!$("view-week").hidden) await renderWeek();
-    renderSyncStatus();
-    renderDayInsight();
+  renderSyncStatus();
+  renderDayInsight();
 }
 
 // If the text is unchanged, keep the previous done value.
@@ -462,7 +527,7 @@ async function onSubmit(event) {
       });
       return;
     }
-    const problem = validate(review);
+    const problem = validateReview(review);
     if (problem) {
       setStatus(problem.message, true);
       $(problem.focus).focus();
@@ -473,7 +538,7 @@ async function onSubmit(event) {
     clearForm();
     hasToday = true;
     editing = false;
-      setStatus(
+    setStatus(
       hasPending()
         ? "Saved on this device. It will sync when you are online."
         : "Saved. Tap the button if you need to edit.",
@@ -563,7 +628,8 @@ async function renderWeek() {
 function renderSyncStatus() {
   const el = $("sync-status");
   if (!navigator.onLine) {
-    el.textContent = "Offline. Changes are saved on this device and will sync when you are back online.";
+    el.textContent =
+      "Offline. Changes are saved on this device and will sync when you are back online.";
     el.hidden = false;
   } else if (hasPending()) {
     el.textContent = "Syncing your changes...";
@@ -647,7 +713,7 @@ async function onCopySummary() {
   try {
     const entries = await getEntries();
     await copyText(buildWeekSummary(entries, currentWeek, new Date()));
-    status.textContent = "Copied. Paste it to Claude.";
+    status.textContent = "Copied to clipboard.";
   } catch (err) {
     console.error("MindLoop: copy failed", err);
     status.textContent = "Copy failed.";
@@ -655,21 +721,15 @@ async function onCopySummary() {
 }
 /* ---------- Your data ---------- */
 
-async function onExport() {
-  const blob = new Blob([await exportAll()], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `mindloop-${todayKey()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  $("data-status").textContent = "Exported.";
-}
-
 let deleteArmed = false;
 async function onDeleteData() {
   const btn = $("delete-data");
   if (!deleteArmed) {
+    if (Object.keys(await getEntries()).length === 0) {
+      $("data-status").textContent = "You have no data to delete.";
+      return;
+    }
+    deleteArmed = true;
     deleteArmed = true;
     btn.textContent = "Tap again to delete everything";
     setTimeout(() => {
@@ -678,7 +738,7 @@ async function onDeleteData() {
     }, 4000);
     return;
   }
-    try {
+  try {
     await clearAll();
   } catch (err) {
     deleteArmed = false;
@@ -691,7 +751,7 @@ async function onDeleteData() {
   hasToday = false;
   editing = false;
   confirming.clear();
-    clearInsightCache();
+  clearInsightCache();
   document.querySelectorAll(".insight-card").forEach((c) => {
     delete c.dataset.showing;
     delete c.dataset.state;
@@ -734,7 +794,50 @@ function showWelcome() {
     }
   });
 }
+function initAccountDelete() {
+  const open = $("account-open");
+  const panel = $("account-confirm");
+  const phrase = $("account-phrase");
+  const confirmBtn = $("account-delete");
+  const status = $("account-status");
 
+  const say = (message, isError = false) => {
+    status.textContent = message;
+    status.classList.toggle("is-error", isError);
+  };
+
+  open.addEventListener("click", () => {
+    open.hidden = true;
+    panel.hidden = false;
+    phrase.focus();
+  });
+
+  $("account-cancel").addEventListener("click", () => {
+    panel.hidden = true;
+    open.hidden = false;
+    phrase.value = "";
+    confirmBtn.disabled = true;
+    say("");
+  });
+
+  phrase.addEventListener("input", () => {
+    confirmBtn.disabled = !isDeleteConfirmed(phrase.value);
+  });
+
+  confirmBtn.addEventListener("click", async () => {
+    if (!isDeleteConfirmed(phrase.value)) return;
+    confirmBtn.disabled = true;
+    say("Deleting your account...");
+    try {
+      await deleteAccount();
+      location.reload();
+    } catch (err) {
+      console.error("MindLoop: account delete failed", err);
+      say(err.message || "Could not delete the account. Try again.", true);
+      confirmBtn.disabled = !isDeleteConfirmed(phrase.value);
+    }
+  });
+}
 async function init() {
   const session = await getSession();
   const offlineUser = !session && !navigator.onLine && cachedUserId();
@@ -749,11 +852,14 @@ async function init() {
   initWeekNav();
   $("review-form").addEventListener("submit", onSubmit);
   $("copy-summary").addEventListener("click", onCopySummary);
-  $("export-data").addEventListener("click", onExport);
+
   $("delete-data").addEventListener("click", onDeleteData);
+  initAccountDelete();
   $("sign-out").addEventListener("click", async () => {
     if (!(await prepareSignOut())) {
-      showAppError("Some changes have not synced yet. Connect to the internet, then sign out.");
+      showAppError(
+        "Some changes have not synced yet. Connect to the internet, then sign out.",
+      );
       return;
     }
     await signOut();
@@ -764,7 +870,7 @@ async function init() {
   await refresh();
 }
 document.addEventListener("visibilitychange", async () => {
-  if (document.hidden|| $("app").hidden) return;
+  if (document.hidden || $("app").hidden) return;
   hasToday = (await getEntry(todayKey())) !== null;
   editing = false;
   syncSubmitLabel();

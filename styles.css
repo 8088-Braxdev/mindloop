@@ -7,6 +7,8 @@
   --accent: #b4532a;
   --accent-text: #ffffff;
   --radius: 10px;
+  --danger: #b4462f;
+  --surface-alt: #f7f1e8;
 }
 
 * {
@@ -175,46 +177,6 @@ button {
   font-size: 0.9rem;
 }
 
-/* Morning check list (items rendered by ui.js) */
-.check-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.check-item {
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
-}
-
-.check-item:first-child {
-  border-top: 0;
-}
-
-.check-text {
-  margin: 0 0 8px;
-}
-
-.check-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.check-actions button {
-  flex: 1;
-  min-height: 44px;
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
-.check-actions button.is-selected {
-  background: var(--accent);
-  color: var(--accent-text);
-  border-color: var(--accent);
-}
-
 /* Week stats (rendered by ui.js) */
 .stat-row {
   display: flex;
@@ -327,51 +289,42 @@ input[type="time"]:focus {
   margin: 0;
   padding: 0;
 }
-
 .plan-item {
+  display: grid;
+  gap: 4px;
   padding: 12px 0;
   border-top: 1px solid var(--line);
 }
-
 .plan-item:first-child {
   border-top: 0;
 }
-
-.plan-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.plan-time {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
 .plan-text {
-  margin: 0 0 10px;
+  margin: 0;
+  font-weight: 600;
 }
 .plan-item.is-done .plan-text {
   color: var(--muted);
   text-decoration: line-through;
 }
-
 .plan-meta {
-  margin: 0 0 10px;
+  margin: 0;
   color: var(--muted);
   font-size: 0.85rem;
 }
-
+.confirm-msg {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
 .plan-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  margin-top: 6px;
 }
-
+.plan-actions:empty {
+  display: none;
+}
 .plan-actions button {
   flex: 1;
   display: flex;
@@ -384,36 +337,9 @@ input[type="time"]:focus {
   border: 1px solid var(--line);
   border-radius: 8px;
 }
-
-.plan-actions button.is-primary {
-  background: var(--accent);
-  color: var(--accent-text);
-  border-color: var(--accent);
-}
-
 .plan-actions button:disabled {
   opacity: 0.4;
   cursor: default;
-}
-
-/* Status badge: waiting | started | late | missed | done */
-.badge {
-  padding: 2px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.badge.is-late,
-.badge.is-missed {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.badge.is-done {
-  color: var(--text);
-  border-color: var(--text);
 }
 
 /* ---------- Week navigation ---------- */
@@ -455,6 +381,7 @@ input[type="time"]:focus {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  font-size: 0.75rem;
 }
 
 .day-cell.is-today {
@@ -464,36 +391,10 @@ input[type="time"]:focus {
   opacity: 0.45;
 }
 
-.day-name {
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.day-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  color: var(--accent-text);
-}
-
-.day-mark .icon {
-  width: 14px;
-  height: 14px;
-  stroke-width: 3;
-}
-
-.day-cell.is-filled .day-mark {
+.day-cell.is-filled {
   background: var(--accent);
   border-color: var(--accent);
-}
-
-.day-score {
-  color: var(--muted);
-  font-size: 0.75rem;
+  color: var(--accent-text);
 }
 
 /* ---------- Charts (CSS only, sizes set inline by ui.js) ---------- */
@@ -528,12 +429,6 @@ input[type="time"]:focus {
   border-radius: 999px;
 }
 
-.chart-empty {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
 .day-chart {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -541,20 +436,28 @@ input[type="time"]:focus {
   align-items: end;
 }
 
-.day-col {
+.col {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+}
+.col.is-future {
+  opacity: 0.45;
+}
+.col-count {
+  min-height: 1em;
+  color: var(--muted);
+  font-size: 0.7rem;
 }
 
 .col-track {
   display: flex;
   align-items: flex-end;
-  width: 100%;
-  height: 110px;
+  width: min(100%, 22px);
+  height: 72px;
   background: var(--line);
-  border-radius: 6px;
+  border-radius: 999px;
   overflow: hidden;
 }
 
@@ -567,36 +470,20 @@ input[type="time"]:focus {
   color: var(--muted);
   font-size: 0.75rem;
 }
-.day-col.is-future {
-  opacity: 0.45;
-}
-
-/* Hakikisha `hidden` inashinda display nyingine */
-[hidden] { display: none !important; }
 
 /* Confirm block (ndani ya fomu ya usiku) */
 #confirm-block {
   margin: 0 0 20px;
   padding: 14px 16px;
-  border: 1px solid var(--border, #e4d9cc);
-  border-left: 3px solid var(--accent, #c2703d);
+  border: 1px solid var(--line);
+  border-left: 3px solid (var(--accent));
   border-radius: 10px;
-  background: var(--surface-alt, #f7f1e8);
+  background: (var(--surface-alt));
 }
-#confirm-block h3 { margin: 0 0 4px; font-size: 1rem; }
-
-/* Plan list: inatumika na Today's plan card na Confirm block */
-.plan-list { list-style: none; margin: 0; padding: 0; }
-.plan-item {
-  display: grid;
-  gap: 4px;
-  padding: 12px 0;
-  border-top: 1px solid var(--border, #e4d9cc);
+#confirm-block h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
 }
-.plan-item:first-child { border-top: 0; }
-.plan-text { margin: 0; font-weight: 600; }
-.plan-meta { margin: 0; font-size: 0.85rem; color: var(--muted, #7a6a58); }
-.plan-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 
 .plan-btn {
   display: inline-flex;
@@ -604,28 +491,42 @@ input[type="time"]:focus {
   gap: 6px;
   min-height: 44px;
   padding: 0 14px;
-  border: 1px solid var(--border, #d9ccbb);
+  border: 1px solid var(--line);
   border-radius: 8px;
   background: transparent;
   color: inherit;
   font: inherit;
   cursor: pointer;
 }
-.plan-btn:hover { background: var(--surface-alt, #f0e8db); }
-.plan-btn .icon { width: 16px; height: 16px; }
+.plan-btn:hover {
+  background: (var(--surface-alt));
+}
+.plan-btn .icon {
+  width: 16px;
+  height: 16px;
+}
 
-/* Hali za priority */
-.plan-item.is-done .plan-text { color: var(--muted, #7a6a58); }
-.confirm-msg { margin: 0; font-size: 0.9rem; color: var(--muted, #7a6a58); }
-
-#review-fields { border: 0; margin: 0; padding: 0; min-width: 0; }
-#review-fields:disabled { opacity: 0.45; }
+#review-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+#review-fields:disabled {
+  opacity: 0.45;
+}
 .plan-item.is-skipped,
-.plan-item.is-missed { opacity: 0.65; }
-.plan-item.is-late .plan-meta { color: var(--danger, #b4462f); }
+.plan-item.is-missed {
+  opacity: 0.65;
+}
+.plan-item.is-late .plan-meta {
+  color: var(--danger);
+}
 
 /* Ujumbe wa error */
-.status.is-error { color: var(--danger, #b4462f); }
+.status.is-error {
+  color: var(--danger);
+}
 .welcome {
   max-width: 28rem;
   margin: 0 auto;
@@ -671,4 +572,106 @@ input[type="time"]:focus {
   color: var(--muted);
   font-size: 0.875rem;
   margin: 0.75rem 0 0;
+}
+/* Logo */
+.welcome-logo {
+  display: block;
+  margin: 0 auto 1.25rem;
+  border-radius: 22%;
+}
+
+.topbar h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-logo {
+  border-radius: 22%;
+}
+@media (max-width: 360px) {
+  .topbar,
+  .tabs,
+  main {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .day-strip {
+    gap: 4px;
+  }
+
+  .day-chart {
+    gap: 4px;
+  }
+
+  .priority-row {
+    grid-template-columns: 1fr 96px;
+  }
+}
+.data-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.data-actions .plan-btn {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+.data-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.data-footer .hint {
+  margin: 0;
+}
+.data-footer .plan-btn {
+  margin-left: auto;
+}
+.bar-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  row-gap: 4px;
+}
+.bar-label {
+  grid-column: 1;
+  grid-row: 1;
+  margin-bottom: 0;
+}
+.bar-count {
+  grid-column: 2;
+  grid-row: 1;
+}
+.bar-track {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.insight-delete {
+  margin-top: 12px;
+  color: var(--muted);
+}
+.plan-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.plan-btn.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.danger-zone {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.danger-zone h3 {
+  margin-top: 14px;
+}
+#account-confirm .data-actions {
+  margin-top: 4px;
 }
