@@ -25,7 +25,6 @@ import {
   dayChartData,
   worstWeekday,
   buildWeekSummary,
-  needsAnswer,
   weekFacts,
   dayFacts,
   addDays,
@@ -43,7 +42,7 @@ import {
 } from "./insights.js";
 
 let currentWeek = mondayOf(toDateKey(new Date()));
-let editing = false; // true = fomu ina review ya leo, inaeditiwa
+let reviewState = "editing";
 let hasToday = false; // review ya leo imeshasaviwa
 
 function clearForm() {
@@ -60,80 +59,43 @@ function syncSubmitLabel() {
   const btn = $("review-form").querySelector("button[type='submit']");
   btn.textContent = !hasToday
     ? "Save review"
-    : editing
+    : reviewState === "editing"
       ? "Update review"
       : "Edit today's review";
 }
 
-const HONESTY = {
-  ask: "You said you did it. Nobody is checking, this is only for you. Did you really finish it?",
-  yes: "Well done. You did what you said you would.",
-  no: "Thanks for the honest answer. That is what makes this useful.",
-};
 const confirming = new Set(); // priorities waiting for the second "are you sure?"
+const LOCKED_REVIEW_MESSAGE =
+  "Review saved. click the button to edit it if you need to change anything.";
 
 async function answer(sourceDate, index, field) {
   confirming.delete(index);
   await onMark(sourceDate, index, field);
 }
 
-function renderConfirm(entries) {
-  const { sourceDate, items } = getPlan(entries, todayKey());
-  const open = items.filter((i) => needsAnswer(i, todayKey()));
+function syncPriorityMode() {
+  const saved = reviewState === "saved";
+  const fields = $("review-fields");
+  const hasPriorities = $("priority-list").children.length > 0;
+  $("priority-editor").hidden = saved;
+  $("priority-review").hidden = !hasPriorities || (!saved && hasToday);
+  fields.querySelectorAll("input, textarea").forEach((field) => {
+    field.readOnly = saved;
+  });
+  fields.setAttribute("aria-disabled", String(saved));
+}
 
-  // Block visible only until tonight's review is saved
-  $("confirm-block").hidden = items.length === 0 || isDayClosed(items);
-  // Every field locked until all items are answered
-  $("review-fields").disabled = !hasToday && open.length > 0;
-
-  $("confirm-list").replaceChildren(
-    ...items.map((item) => {
-      const li = document.createElement("li");
-      li.className = "plan-item";
-
-      const text = document.createElement("p");
-      text.className = "plan-text";
-      text.textContent = `${item.text} (${item.time || "no time"})`;
-
-      const note = document.createElement("p");
-      note.className = "confirm-msg";
-
-      const actions = document.createElement("div");
-      actions.className = "plan-actions";
-
-      if (item.doneAt) {
-        note.textContent = HONESTY.yes;
-      } else if (item.skippedAt) {
-        note.textContent = HONESTY.no;
-      } else if (!needsAnswer(item, todayKey())) {
-        note.textContent = "Not due yet.";
-      } else if (confirming.has(item.index)) {
-        note.textContent = HONESTY.ask;
-        actions.append(
-          planButton("i-check", "Yes, honestly", () =>
-            answer(sourceDate, item.index, "doneAt"),
-          ),
-          planButton("i-x", "No, not really", () =>
-            answer(sourceDate, item.index, "skippedAt"),
-          ),
-        );
-      } else {
-        note.textContent = "Did you do it?";
-        actions.append(
-          planButton("i-check", "Yes", () => {
-            confirming.add(item.index);
-            renderConfirm(entries);
-          }),
-          planButton("i-x", "No", () =>
-            answer(sourceDate, item.index, "skippedAt"),
-          ),
-        );
-      }
-
-      li.append(text, note, actions);
-      return li;
-    }),
-  );
+function initReviewLock() {
+  const fields = $("review-fields");
+  const showLockedMessage = (event) => {
+    if (reviewState !== "saved") return;
+    if (!event.target.closest("input, textarea, select")) return;
+    event.preventDefault();
+    event.target.blur();
+    setStatus(LOCKED_REVIEW_MESSAGE);
+  };
+  fields.addEventListener("click", showLockedMessage);
+  fields.addEventListener("focusin", showLockedMessage);
 }
 /* ---------- Helpers ---------- */
 
@@ -192,8 +154,8 @@ function planButton(iconId, label, onClick) {
   return btn;
 }
 
-function buildPlanItem(item, sourceDate) {
-  const status = priorityStatus(item, todayKey(), new Date());
+function buildPlanItem(item, sourceDate, planDate, entries) {
+  const status = priorityStatus(item, planDate, new Date());
 
   const li = document.createElement("li");
   li.className = `plan-item is-${status}`;
@@ -206,9 +168,25 @@ function buildPlanItem(item, sourceDate) {
   meta.className = "plan-meta";
   meta.textContent = `${item.time || "No time"} · ${STATUS_TEXT[status]}`;
 
+  const note = document.createElement("p");
+  note.className = "confirm-msg";
+  if (item.doneAt) {
+    note.textContent = "Well done. You did what you said you would.";
+  } else if (item.skippedAt) {
+    note.textContent = "Thanks for being honest. That helps you plan better.";
+  } else if (confirming.has(item.index)) {
+    note.textContent =
+      "You said you did it. Nobody is checking, this is only for you. Did you really finish it?";
+  }
+
   const actions = document.createElement("div");
   actions.className = "plan-actions";
-  if (!item.startedAt && !item.doneAt && !item.skippedAt) {
+  if (
+    planDate === todayKey() &&
+    !item.startedAt &&
+    !item.doneAt &&
+    !item.skippedAt
+  ) {
     actions.append(
       planButton("i-play", "Start", () =>
         onMark(sourceDate, item.index, "startedAt"),
@@ -216,7 +194,30 @@ function buildPlanItem(item, sourceDate) {
     );
   }
 
-  li.append(text, meta, actions);
+  if (planDate === todayKey() && !item.doneAt && !item.skippedAt) {
+    if (confirming.has(item.index)) {
+      actions.append(
+        planButton("i-check", "Yes, honestly", () =>
+          answer(sourceDate, item.index, "doneAt"),
+        ),
+        planButton("i-x", "No, not really", () =>
+          answer(sourceDate, item.index, "skippedAt"),
+        ),
+      );
+    } else {
+      actions.append(
+        planButton("i-check", "Mark done", () => {
+          confirming.add(item.index);
+          renderPlan(entries);
+        }),
+        planButton("i-x", "Not done", () =>
+          answer(sourceDate, item.index, "skippedAt"),
+        ),
+      );
+    }
+  }
+
+  li.append(text, meta, note, actions);
   return li;
 }
 
@@ -230,14 +231,37 @@ async function onMark(sourceDate, index, field) {
   }
 }
 const isDayClosed = (items) =>
-  hasToday && items.every((i) => i.doneAt || i.skippedAt);
+  items.length > 0 && items.every((i) => i.doneAt || i.skippedAt);
 
 function renderPlan(entries) {
-  const { sourceDate, items } = getPlan(entries, todayKey());
-  $("plan-list").replaceChildren(
-    ...items.map((i) => buildPlanItem(i, sourceDate)),
+  const today = todayKey();
+  const current = getPlan(entries, today);
+  let sourceDate = current.sourceDate;
+  let planDate = today;
+  let items = current.items;
+  let title = "Today's priorities";
+  const saved = entries.find((entry) => entry.date === today);
+  const savedItems = (saved?.priorities || [])
+    .map((item, index) => ({ ...item, index }))
+    .filter((item) => item.text);
+  if (reviewState === "saved" && savedItems.length > 0) {
+    sourceDate = today;
+    items = savedItems;
+    title = "Tomorrow's priorities";
+  } else if (items.length === 0 && savedItems.length > 0) {
+    sourceDate = today;
+    items = savedItems;
+    title = "Tomorrow's priorities";
+  }
+  $("priority-list").replaceChildren(
+    ...items.map((item) => buildPlanItem(item, sourceDate, planDate, entries)),
   );
-  $("plan-card").hidden = items.length === 0 || isDayClosed(items);
+  $("priority-title").textContent = title;
+  $("priority-status").textContent =
+    items.length > 0 && isDayClosed(items)
+      ? "Well done. You did what you said you would."
+      : "";
+  syncPriorityMode();
 }
 
 /* ---------- AI insights ---------- */
@@ -455,7 +479,6 @@ async function refresh(entries = null) {
   entries ??= await getEntries();
   renderStreak(entries);
   renderPlan(entries);
-  renderConfirm(entries);
   if (!$("view-week").hidden) await renderWeek();
   renderSyncStatus();
   renderDayInsight();
@@ -504,9 +527,10 @@ async function onSubmit(event) {
   const button = event.target.querySelector("button[type='submit']");
 
   // Imeshasaviwa leo na hatuedit bado: click hii inamaanisha "Edit"
-  if (hasToday && !editing) {
+  if (hasToday && reviewState === "saved") {
     fillForm(await getEntry(todayKey()));
-    editing = true;
+    reviewState = "editing";
+    syncPriorityMode();
     setStatus("Editing today's review.");
     syncSubmitLabel();
     return;
@@ -516,15 +540,6 @@ async function onSubmit(event) {
   try {
     const previous = await getEntry(todayKey());
     const review = readForm(previous);
-    const { items } = getPlan(await getEntries(), todayKey());
-    if (items.some((i) => needsAnswer(i, todayKey()))) {
-      setStatus("Answer today's plan first.", true);
-      $("confirm-block").scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-      return;
-    }
     const problem = validateReview(review);
     if (problem) {
       setStatus(problem.message, true);
@@ -533,9 +548,8 @@ async function onSubmit(event) {
     }
 
     await saveEntry(review);
-    clearForm();
     hasToday = true;
-    editing = false;
+    reviewState = "saved";
     setStatus(
       hasPending()
         ? "Saved on this device. It will sync when you are online."
@@ -762,7 +776,7 @@ async function onDeleteData() {
   deleteArmed = false;
   btn.textContent = "Delete all data";
   hasToday = false;
-  editing = false;
+  reviewState = "editing";
   confirming.clear();
   clearInsightCache();
   document.querySelectorAll(".insight-card").forEach((c) => {
@@ -872,6 +886,7 @@ async function init() {
   initTabs();
   initWeekNav();
   $("review-form").addEventListener("submit", onSubmit);
+  initReviewLock();
   $("copy-summary").addEventListener("click", onCopySummary);
 
   $("delete-data").addEventListener("click", onDeleteData);
@@ -892,6 +907,7 @@ async function init() {
       try {
         const entries = await getEntries();
         hasToday = entries.some((entry) => entry.date === todayKey());
+        reviewState = hasToday ? "saved" : "editing";
         syncSubmitLabel();
         await refresh(entries);
       } catch (err) {
@@ -906,7 +922,7 @@ async function init() {
 document.addEventListener("visibilitychange", async () => {
   if (document.hidden || $("app").hidden) return;
   hasToday = (await getEntry(todayKey())) !== null;
-  editing = false;
+  reviewState = hasToday ? "saved" : "editing";
   syncSubmitLabel();
   await refresh();
 });

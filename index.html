@@ -119,12 +119,6 @@
             <!-- TODAY VIEW -->
             <section id="view-today" class="view">
 
-                <!-- Today's plan: written last night, each item has Start-->
-                <div id="plan-card" class="card" hidden>
-                    <h2>Today's plan</h2>
-                    <ul id="plan-list" class="plan-list"></ul>
-                </div>
-
                 <div id="day-insight" class="card insight-card" hidden>
                     <h2>Today's insight</h2>
                     <div class="insight-body"></div>
@@ -136,11 +130,6 @@
                 <!-- Night review -->
                 <form id="review-form" class="card">
                     <h2>Tonight's review</h2>
-                    <div id="confirm-block" hidden>
-                        <h3>Today's plan: be honest</h3>
-                        <p class="hint">Answer each one to unlock the review.</p>
-                        <ul id="confirm-list" class="plan-list"></ul>
-                    </div>
                     <fieldset id="review-fields">
                         <label for="wins">What went well?</label>
                         <textarea id="wins" rows="3"></textarea>
@@ -160,26 +149,37 @@
                         <label for="lessons">What did I learn?</label>
                         <textarea id="lessons" rows="2"></textarea>
 
-                        <h3>Tomorrow's 3 priorities</h3>
-                        <p class="hint">Write the task and the time you will start it.</p>
+                        <div id="priority-editor">
+                            <h3>Tomorrow's 3 priorities</h3>
+                            <p class="hint">Write the task and the time you will start it.</p>
 
-                        <div class="priority-row">
-                            <input id="p1" type="text" maxlength="120" placeholder="Priority 1" aria-label="Priority 1">
-                            <input id="t1" type="time" aria-label="Start time for priority 1">
+                            <div class="priority-row">
+                                <input id="p1" type="text" maxlength="120" placeholder="Priority 1"
+                                    aria-label="Priority 1">
+                                <input id="t1" type="time" aria-label="Start time for priority 1">
+                            </div>
+                            <div class="priority-row">
+                                <input id="p2" type="text" maxlength="120" placeholder="Priority 2"
+                                    aria-label="Priority 2">
+                                <input id="t2" type="time" aria-label="Start time for priority 2">
+                            </div>
+                            <div class="priority-row">
+                                <input id="p3" type="text" maxlength="120" placeholder="Priority 3"
+                                    aria-label="Priority 3">
+                                <input id="t3" type="time" aria-label="Start time for priority 3">
+                            </div>
                         </div>
-                        <div class="priority-row">
-                            <input id="p2" type="text" maxlength="120" placeholder="Priority 2" aria-label="Priority 2">
-                            <input id="t2" type="time" aria-label="Start time for priority 2">
-                        </div>
-                        <div class="priority-row">
-                            <input id="p3" type="text" maxlength="120" placeholder="Priority 3" aria-label="Priority 3">
-                            <input id="t3" type="time" aria-label="Start time for priority 3">
-                        </div>
-
-                        <button type="submit" class="primary">Save review</button>
                     </fieldset>
+                    <button type="submit" class="primary">Save review</button>
                     <p id="form-status" class="status" role="status"></p>
                 </form>
+
+                <div id="priority-review" class="card" hidden>
+                    <h2 id="priority-title">Today's priorities</h2>
+                    <p class="hint">Answer each one honestly.</p>
+                    <ul id="priority-list" class="plan-list"></ul>
+                    <p id="priority-status" class="status" role="status"></p>
+                </div>
             </section>
 
             <!-- WEEK VIEW -->
