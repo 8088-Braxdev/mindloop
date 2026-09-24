@@ -39,7 +39,8 @@ const sendInsight = (res, row, cached) =>
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function isDateKey(value) {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    return false;
   const d = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
 }
@@ -122,22 +123,25 @@ async function callGroq(messages) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 25000);
     try {
-      response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      response = await fetch(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: MODEL,
+            messages,
+            temperature: 0.3,
+            max_completion_tokens: 1500,
+            reasoning_effort: "low",
+            response_format: { type: "json_object" },
+          }),
+          signal: controller.signal,
         },
-        body: JSON.stringify({
-          model: MODEL,
-          messages,
-          temperature: 0.3,
-          max_completion_tokens: 1500,
-          reasoning_effort: "low",
-          response_format: { type: "json_object" },
-        }),
-        signal: controller.signal,
-      });
+      );
     } finally {
       clearTimeout(timer);
     }
@@ -161,8 +165,14 @@ function parseInsight(text) {
   } catch {
     return null;
   }
-  const str = (v, max) => typeof v === "string" && v.trim() !== "" && v.length <= max;
-  if (!obj || !str(obj.headline, 200) || !str(obj.pattern, 800) || !str(obj.suggestion, 600)) {
+  const str = (v, max) =>
+    typeof v === "string" && v.trim() !== "" && v.length <= max;
+  if (
+    !obj ||
+    !str(obj.headline, 200) ||
+    !str(obj.pattern, 800) ||
+    !str(obj.suggestion, 600)
+  ) {
     return null;
   }
   if (
@@ -219,10 +229,20 @@ async function claimPeriod(admin, userId, type, key) {
   if (existing?.status === "done") return { done: existing };
 
   // A pending row that is too old means an earlier run crashed: take it over.
-  const age = existing ? Date.now() - new Date(existing.created_at).getTime() : 0;
+  const age = existing
+    ? Date.now() - new Date(existing.created_at).getTime()
+    : 0;
   if (existing && age > STALE_PENDING_MS) {
-    await admin.from("insights").delete().eq("id", existing.id).eq("status", "pending");
-    const retry = await admin.from("insights").insert(row).select("id").single();
+    await admin
+      .from("insights")
+      .delete()
+      .eq("id", existing.id)
+      .eq("status", "pending");
+    const retry = await admin
+      .from("insights")
+      .insert(row)
+      .select("id")
+      .single();
     if (!retry.error) return { id: retry.data.id };
   }
   return { busy: true };
@@ -230,20 +250,42 @@ async function claimPeriod(admin, userId, type, key) {
 
 /* ---------- The handler ---------- */
 
+function allowLocalPreview(req, res) {
+  const origin = req.headers.origin;
+  const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(
+    origin || "",
+  );
+  if (!isLocal) return false;
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Vary", "Origin");
+  return true;
+}
+
 export default async function handler(req, res) {
+  if (allowLocalPreview(req, res) && req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
   if (req.method !== "POST") return fail(res, 405, "method", "Use POST.");
 
-  const missing = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "GROQ_API_KEY"].filter(
-    (k) => !process.env[k],
-  );
+  const missing = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "GROQ_API_KEY",
+  ].filter((k) => !process.env[k]);
   if (missing.length) {
     console.error("MindLoop insight: missing env vars:", missing.join(", "));
     return fail(res, 500, "setup", "Insights are not set up yet.");
   }
 
-  const admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const admin = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+    },
+  );
 
   // 1. Who is asking. The user id comes from the verified token, never from the body.
   const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
@@ -256,13 +298,15 @@ export default async function handler(req, res) {
 
   // 2. Is the request valid.
   const { type, key, facts } = req.body || {};
-  if (!["day", "week"].includes(type)) return fail(res, 400, "bad_request", "Unknown insight type.");
+  if (!["day", "week"].includes(type))
+    return fail(res, 400, "bad_request", "Unknown insight type.");
   if (!isDateKey(key)) return fail(res, 400, "bad_request", "Invalid date.");
   if (type === "week" && new Date(`${key}T00:00:00Z`).getUTCDay() !== 1) {
     return fail(res, 400, "bad_request", "A week must start on Monday.");
   }
   const today = new Date().toISOString().slice(0, 10);
-  if (key > addDays(today, 1)) return fail(res, 400, "too_early", "That period has not started yet.");
+  if (key > addDays(today, 1))
+    return fail(res, 400, "too_early", "That period has not started yet.");
   if (JSON.stringify(facts ?? {}).length > 4000) {
     return fail(res, 400, "bad_request", "Summary is too large.");
   }
@@ -296,7 +340,12 @@ export default async function handler(req, res) {
         .eq("ok", true),
     );
     if (usedBefore > 0) {
-      return fail(res, 409, "already_generated", "The insight for this period was already generated.");
+      return fail(
+        res,
+        409,
+        "already_generated",
+        "The insight for this period was already generated.",
+      );
     }
 
     // 5. Limits: per user, then for everyone together.
@@ -308,11 +357,25 @@ export default async function handler(req, res) {
         .eq("day", today),
     );
     if (attempts >= USER_DAILY_ATTEMPTS) {
-      return fail(res, 429, "user_limit", "You have used today's insight attempts. Try again tomorrow.");
+      return fail(
+        res,
+        429,
+        "user_limit",
+        "You have used today's insight attempts. Try again tomorrow.",
+      );
     }
     const totals = must(await admin.rpc("ai_today_totals")).data?.[0];
-    if (totals && (Number(totals.tokens) >= DAILY_TOKEN_CAP || Number(totals.requests) >= DAILY_REQUEST_CAP)) {
-      return fail(res, 503, "at_capacity", "Insights are at capacity today. Please try again tomorrow.");
+    if (
+      totals &&
+      (Number(totals.tokens) >= DAILY_TOKEN_CAP ||
+        Number(totals.requests) >= DAILY_REQUEST_CAP)
+    ) {
+      return fail(
+        res,
+        503,
+        "at_capacity",
+        "Insights are at capacity today. Please try again tomorrow.",
+      );
     }
 
     // 6. Read this person's entries (day before included: it holds the plan for this period).
@@ -328,13 +391,24 @@ export default async function handler(req, res) {
         .order("date"),
     );
     if (!rows.some((r) => r.date >= start && r.date <= end)) {
-      return fail(res, 422, "no_data", "Write at least one review in this period first.");
+      return fail(
+        res,
+        422,
+        "no_data",
+        "Write at least one review in this period first.",
+      );
     }
 
     // 7. Claim the period so two taps at once cannot cause two Groq calls.
     const claim = await claimPeriod(admin, userId, type, key);
     if (claim.done) return sendInsight(res, claim.done, true);
-    if (claim.busy) return fail(res, 409, "busy", "Your insight is being written. Try again in a moment.");
+    if (claim.busy)
+      return fail(
+        res,
+        409,
+        "busy",
+        "Your insight is being written. Try again in a moment.",
+      );
     claimId = claim.id;
 
     // 8. Call Groq.
@@ -345,13 +419,28 @@ export default async function handler(req, res) {
       { role: "user", content: userMessage },
     ]);
     if (response.status === 429) {
-      return fail(res, 429, "busy", "Insights are busy right now. Try again in a minute.", {
-        retryAfter: Number(response.headers.get("retry-after")) || 60,
-      });
+      return fail(
+        res,
+        429,
+        "busy",
+        "Insights are busy right now. Try again in a minute.",
+        {
+          retryAfter: Number(response.headers.get("retry-after")) || 60,
+        },
+      );
     }
     if (!response.ok) {
-      console.error("MindLoop insight: Groq error", response.status, await response.text());
-      return fail(res, 502, "provider", "The insight service had a problem. Try again in a minute.");
+      console.error(
+        "MindLoop insight: Groq error",
+        response.status,
+        await response.text(),
+      );
+      return fail(
+        res,
+        502,
+        "provider",
+        "The insight service had a problem. Try again in a minute.",
+      );
     }
     const payload = await response.json();
     tokens = payload.usage?.total_tokens || 0;
@@ -359,12 +448,23 @@ export default async function handler(req, res) {
     // 9. Verify before saving.
     const insight = parseInsight(payload.choices?.[0]?.message?.content || "");
     if (!insight) {
-      return fail(res, 502, "bad_output", "The insight came back incomplete. Try again.");
+      return fail(
+        res,
+        502,
+        "bad_output",
+        "The insight came back incomplete. Try again.",
+      );
     }
     const unsupported = unsupportedNumbers(insight, userMessage);
     if (unsupported.length > 0) {
       console.error("MindLoop insight: unsupported numbers", unsupported);
-return fail(res, 502, "unverified", "The insight could not be checked against your data. Try again.", { numbers: unsupported });
+      return fail(
+        res,
+        502,
+        "unverified",
+        "The insight could not be checked against your data. Try again.",
+        { numbers: unsupported },
+      );
     }
 
     // 10. Save.
@@ -380,17 +480,32 @@ return fail(res, 502, "unverified", "The insight could not be checked against yo
     return sendInsight(res, row, false);
   } catch (err) {
     console.error("MindLoop insight: failed", err);
-    return fail(res, 500, "server", "Something went wrong. Try again in a moment.");
+    return fail(
+      res,
+      500,
+      "server",
+      "Something went wrong. Try again in a moment.",
+    );
   } finally {
     // A failed run must not use up the period, and every Groq call is counted.
     try {
       if (claimId && !saved) {
-        await admin.from("insights").delete().eq("id", claimId).eq("status", "pending");
+        await admin
+          .from("insights")
+          .delete()
+          .eq("id", claimId)
+          .eq("status", "pending");
       }
       if (calledGroq) {
         await admin
           .from("ai_log")
-          .insert({ user_id: userId, type, period_key: key, tokens, ok: saved });
+          .insert({
+            user_id: userId,
+            type,
+            period_key: key,
+            tokens,
+            ok: saved,
+          });
       }
     } catch (cleanupError) {
       console.error("MindLoop insight: cleanup failed", cleanupError);

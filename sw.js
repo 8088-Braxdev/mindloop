@@ -1,8 +1,7 @@
-// sw.js - lets MindLoop open without a connection.
 // App files are served from the device copy and refreshed in the background.
 // Supabase, Google sign-in and /api/ calls always go to the network.
 
-const CACHE = "mindloop-shell-v5";
+const CACHE = "mindloop-shell-v6";
 const SHELL = [
   "./",
   "index.html",
@@ -12,18 +11,36 @@ const SHELL = [
   "js/storage.js",
   "js/auth.js",
   "js/supabase.js",
+
   "js/insights.js",
   "js/account.js",
   "privacy.html",
   "terms.html",
   "manifest.webmanifest",
-    "favicon.ico",
+  "favicon.ico",
   "icons/icon-192.png",
   "icons/apple-touch-icon.png",
+  "icons/icon-512.png",
+  "icons/favicon-32.png",
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
+  event.waitUntil(
+    caches.open(CACHE).then(async (cache) => {
+      const results = await Promise.allSettled(
+        SHELL.map(async (file) => {
+          const response = await fetch(file, { cache: "no-cache" });
+          if (!response.ok) throw new Error(`${file}: ${response.status}`);
+          await cache.put(file, response);
+        }),
+      );
+      results
+        .filter((result) => result.status === "rejected")
+        .forEach((result) =>
+          console.warn("MindLoop: shell asset was not cached", result.reason),
+        );
+    }),
+  );
   self.skipWaiting();
 });
 
@@ -32,7 +49,9 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))),
+        Promise.all(
+          keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)),
+        ),
       ),
   );
   self.clients.claim();
@@ -53,7 +72,13 @@ self.addEventListener("fetch", (event) => {
       const cached = await cache.match(req, { ignoreSearch: true });
       const network = fetch(req)
         .then((res) => {
-          if (res.ok && !url.search) cache.put(req, res.clone());
+          if (res.ok && !url.search) {
+            cache
+              .put(req, res.clone())
+              .catch((err) =>
+                console.warn("MindLoop: response was not cached", err),
+              );
+          }
           return res;
         })
         .catch(() => cached || Response.error());

@@ -8,6 +8,11 @@ import { getSession } from "./auth.js";
 const found = new Map(); // "week:2026-09-21" -> { insight, createdAt }
 const missedAt = new Map(); // when we last looked and found nothing
 const MISS_TTL_MS = 30000;
+const API_ORIGIN = /^(https?:\/\/localhost|https?:\/\/127\.0\.0\.1)/.test(
+  window.location.origin,
+)
+  ? "https://mindloop.braxcode.com"
+  : "";
 
 const idOf = (type, key) => `${type}:${key}`;
 
@@ -54,14 +59,18 @@ export async function getInsight(type, key) {
 // Asks the server to write the insight. The server caches, limits and verifies it.
 export async function requestInsight(type, key, facts) {
   if (!navigator.onLine) {
-    throw new InsightError("offline", "You need an internet connection to get an insight.");
+    throw new InsightError(
+      "offline",
+      "You need an internet connection to get an insight.",
+    );
   }
   const session = await getSession();
-  if (!session) throw new InsightError("signin", "Sign in again to get insights.");
+  if (!session)
+    throw new InsightError("signin", "Sign in again to get insights.");
 
   let response;
   try {
-    response = await fetch("/api/insight", {
+    response = await fetch(`${API_ORIGIN}/api/insight`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -70,7 +79,10 @@ export async function requestInsight(type, key, facts) {
       body: JSON.stringify({ type, key, facts }),
     });
   } catch {
-    throw new InsightError("offline", "Could not reach the server. Check your connection.");
+    throw new InsightError(
+      "offline",
+      "Could not reach the server. Check your connection.",
+    );
   }
 
   const body = await response.json().catch(() => null);
@@ -91,7 +103,10 @@ export async function requestInsight(type, key, facts) {
 // It does NOT give the period another try: the server usage log remembers it.
 export async function deleteInsight(type, key) {
   if (!navigator.onLine) {
-    throw new InsightError("offline", "You need an internet connection to delete an insight.");
+    throw new InsightError(
+      "offline",
+      "You need an internet connection to delete an insight.",
+    );
   }
   const { error } = await supabase
     .from("insights")

@@ -32,7 +32,7 @@ import {
   validateReview,
   isDeleteConfirmed,
 } from "./logic.js";
-import { getSession, signInWithGoogle, signOut } from "./auth.js";
+import { getSession, signInWithGoogle, signOut, cachedUserId } from "./auth.js";
 import { deleteAccount } from "./account.js";
 import {
   getInsight,
@@ -377,9 +377,6 @@ async function showInsight(card, opts) {
   btn.hidden = false;
   btn.disabled = false;
   btn.onclick = async () => {
-    fillInsight(body, result.insight, result.createdAt);
-    addDeleteButton(card, opts);
-    card.dataset.state = "found";
     btn.disabled = true;
     card.dataset.state = "busy";
     status.textContent = "Checking your latest changes...";
@@ -400,6 +397,7 @@ async function showInsight(card, opts) {
       );
       if (card.dataset.showing !== token) return;
       fillInsight(body, result.insight, result.createdAt);
+      addDeleteButton(card, opts);
       card.dataset.state = "found";
       btn.hidden = true;
       status.textContent = "";
@@ -453,8 +451,8 @@ function renderWeekInsight(s) {
 
 /* ---------- Refresh + init ---------- */
 
-async function refresh() {
-  const entries = await getEntries();
+async function refresh(entries = null) {
+  entries ??= await getEntries();
   renderStreak(entries);
   renderPlan(entries);
   renderConfirm(entries);
@@ -625,19 +623,34 @@ async function renderWeek() {
   renderWeekInsight(s);
 }
 
+let wasPending = hasPending();
+let syncedUntil = 0;
+
 function renderSyncStatus() {
   const el = $("sync-status");
+  const pending = hasPending();
   if (!navigator.onLine) {
     el.textContent =
       "Offline. Changes are saved on this device and will sync when you are back online.";
     el.hidden = false;
-  } else if (hasPending()) {
+  } else if (pending) {
     el.textContent = "Syncing your changes...";
     el.hidden = false;
   } else {
-    el.hidden = true;
+    if (wasPending) {
+      syncedUntil = Date.now() + 4000;
+      setTimeout(renderSyncStatus, 4100);
+    }
+    if (Date.now() < syncedUntil) {
+      el.textContent = "Synced. Your changes are saved to your account. ✅";
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+    }
   }
+  wasPending = pending;
 }
+
 function renderReasonChart(s) {
   const box = $("reason-chart");
   const data = reasonChartData(s);
@@ -730,7 +743,7 @@ async function onDeleteData() {
       return;
     }
     deleteArmed = true;
-    deleteArmed = true;
+
     btn.textContent = "Tap again to delete everything";
     setTimeout(() => {
       deleteArmed = false;
@@ -758,6 +771,9 @@ async function onDeleteData() {
   });
   clearForm();
   syncSubmitLabel();
+  currentWeek = mondayOf(todayKey());
+  setStatus("");
+  $("copy-status").textContent = "";
   $("data-status").textContent = "All data deleted.";
   await refresh();
 }
@@ -767,10 +783,15 @@ onViewShow.week = () => {
   currentWeek = mondayOf(todayKey());
   renderWeek();
 };
+let errorTimer;
 function showAppError(message) {
   const el = $("app-error");
   el.textContent = message;
   el.hidden = false;
+  clearTimeout(errorTimer);
+  errorTimer = setTimeout(() => {
+    el.hidden = true;
+  }, 6000);
 }
 
 window.addEventListener("unhandledrejection", (e) => {
@@ -865,9 +886,22 @@ async function init() {
     await signOut();
     location.reload();
   });
-  hasToday = (await getEntry(todayKey())) !== null;
   syncSubmitLabel();
-  await refresh();
+  requestAnimationFrame(() => {
+    setTimeout(async () => {
+      try {
+        const entries = await getEntries();
+        hasToday = entries.some((entry) => entry.date === todayKey());
+        syncSubmitLabel();
+        await refresh(entries);
+      } catch (err) {
+        console.error("MindLoop: initial data load failed", err);
+        showAppError(
+          "Could not load your reviews. Check your connection and try again.",
+        );
+      }
+    }, 0);
+  });
 }
 document.addEventListener("visibilitychange", async () => {
   if (document.hidden || $("app").hidden) return;
@@ -879,6 +913,7 @@ document.addEventListener("visibilitychange", async () => {
 
 init();
 window.addEventListener("online", async () => {
+  renderSyncStatus();
   try {
     await syncNow();
   } catch (err) {
