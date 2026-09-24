@@ -94,7 +94,19 @@ export function getPlan(entries, dateKey) {
     .filter((p) => p.text);
   return { sourceDate, items };
 }
-
+// Priorities shown in the card.
+// savedTonight: the ones just saved (for tomorrow). Otherwise today's plan.
+export function getCardPlan(entries, todayKey, savedTonight) {
+  if (savedTonight) {
+    const source = entries.find((e) => e.date === todayKey);
+    const items = ((source && source.priorities) || [])
+      .map((p, index) => ({ ...p, index }))
+      .filter((p) => p.text);
+    return { sourceDate: todayKey, planDate: addDays(todayKey, 1), items };
+  }
+  const { sourceDate, items } = getPlan(entries, todayKey);
+  return { sourceDate, planDate: todayKey, items };
+}
 function plannedStart(planDate, time) {
   return time ? parseLocal(planDate, time) : null;
 }

@@ -31,6 +31,7 @@ import {
   addDays,
   validateReview,
   isDeleteConfirmed,
+  getCardPlan,
 } from "./logic.js";
 import { getSession, signInWithGoogle, signOut, cachedUserId } from "./auth.js";
 import { deleteAccount } from "./account.js";
@@ -49,7 +50,16 @@ let hasToday = false; // review ya leo imeshasaviwa
 function clearForm() {
   $("review-form").reset();
 }
-
+// Saved tonight and not editing: hide priority inputs, show the shield.
+function syncPriorityMode() {
+  const locked = hasToday && !editing;
+  document
+    .querySelectorAll("#review-fields .priority-row, #review-fields .priority-head")
+    .forEach((el) => {
+      el.style.display = locked ? "none" : "";
+    });
+  $("lock-shield").hidden = !locked;
+}
 function setStatus(message, isError = false) {
   const el = $("form-status");
   el.textContent = message;
@@ -77,64 +87,7 @@ async function answer(sourceDate, index, field) {
   await onMark(sourceDate, index, field);
 }
 
-function renderConfirm(entries) {
-  const { sourceDate, items } = getPlan(entries, todayKey());
-  const open = items.filter((i) => needsAnswer(i, todayKey()));
 
-  // Block visible only until tonight's review is saved
-  $("confirm-block").hidden = items.length === 0 || isDayClosed(items);
-  // Every field locked until all items are answered
-  $("review-fields").disabled = !hasToday && open.length > 0;
-
-  $("confirm-list").replaceChildren(
-    ...items.map((item) => {
-      const li = document.createElement("li");
-      li.className = "plan-item";
-
-      const text = document.createElement("p");
-      text.className = "plan-text";
-      text.textContent = `${item.text} (${item.time || "no time"})`;
-
-      const note = document.createElement("p");
-      note.className = "confirm-msg";
-
-      const actions = document.createElement("div");
-      actions.className = "plan-actions";
-
-      if (item.doneAt) {
-        note.textContent = HONESTY.yes;
-      } else if (item.skippedAt) {
-        note.textContent = HONESTY.no;
-      } else if (!needsAnswer(item, todayKey())) {
-        note.textContent = "Not due yet.";
-      } else if (confirming.has(item.index)) {
-        note.textContent = HONESTY.ask;
-        actions.append(
-          planButton("i-check", "Yes, honestly", () =>
-            answer(sourceDate, item.index, "doneAt"),
-          ),
-          planButton("i-x", "No, not really", () =>
-            answer(sourceDate, item.index, "skippedAt"),
-          ),
-        );
-      } else {
-        note.textContent = "Did you do it?";
-        actions.append(
-          planButton("i-check", "Yes", () => {
-            confirming.add(item.index);
-            renderConfirm(entries);
-          }),
-          planButton("i-x", "No", () =>
-            answer(sourceDate, item.index, "skippedAt"),
-          ),
-        );
-      }
-
-      li.append(text, note, actions);
-      return li;
-    }),
-  );
-}
 /* ---------- Helpers ---------- */
 
 const $ = (id) => document.getElementById(id);
@@ -192,8 +145,8 @@ function planButton(iconId, label, onClick) {
   return btn;
 }
 
-function buildPlanItem(item, sourceDate) {
-  const status = priorityStatus(item, todayKey(), new Date());
+function buildPlanItem(item, sourceDate, planDate) {
+  const status = priorityStatus(item, planDate, new Date());
 
   const li = document.createElement("li");
   li.className = `plan-item is-${status}`;
@@ -206,18 +159,66 @@ function buildPlanItem(item, sourceDate) {
   meta.className = "plan-meta";
   meta.textContent = `${item.time || "No time"} · ${STATUS_TEXT[status]}`;
 
+  const note = document.createElement("p");
+  note.className = "confirm-msg";
+
   const actions = document.createElement("div");
   actions.className = "plan-actions";
-  if (!item.startedAt && !item.doneAt && !item.skippedAt) {
-    actions.append(
-      planButton("i-play", "Start", () =>
-        onMark(sourceDate, item.index, "startedAt"),
-      ),
-    );
+
+  const isPreview = planDate > todayKey(); // tomorrow's plan: nothing to mark yet
+  if (!isPreview) {
+    if (item.doneAt) {
+      note.textContent = HONESTY.yes;
+    } else if (item.skippedAt) {
+      note.textContent = HONESTY.no;
+    } else {
+      if (!item.startedAt) {
+        actions.append(
+          planButton("i-play", "Start", () =>
+            onMark(sourceDate, item.index, "startedAt"),
+          ),
+        );
+      }
+      if (confirming.has(item.index)) {
+        note.textContent = HONESTY.ask;
+        actions.append(
+          planButton("i-check", "Yes, honestly", () =>
+            answer(sourceDate, item.index, "doneAt"),
+          ),
+          planButton("i-x", "No, not really", () =>
+            answer(sourceDate, item.index, "skippedAt"),
+          ),
+        );
+      } else {
+        actions.append(
+          planButton("i-check", "Mark done", async () => {
+            confirming.add(item.index);
+            renderPriorityCard(await getEntries());
+          }),
+          planButton("i-x", "Not done", () =>
+            answer(sourceDate, item.index, "skippedAt"),
+          ),
+        );
+      }
+    }
   }
 
-  li.append(text, meta, actions);
+  li.append(text, meta, note, actions);
   return li;
+}
+
+function renderPriorityCard(entries) {
+  const { sourceDate, planDate, items } = getCardPlan(
+    entries,
+    todayKey(),
+    hasToday && !editing,
+  );
+  $("priority-title").textContent =
+    planDate > todayKey() ? "Tomorrow's priorities" : "Today's priorities";
+  $("priority-list").replaceChildren(
+    ...items.map((i) => buildPlanItem(i, sourceDate, planDate)),
+  );
+  $("priority-review").hidden = items.length === 0 || editing;
 }
 
 async function onMark(sourceDate, index, field) {
@@ -229,16 +230,8 @@ async function onMark(sourceDate, index, field) {
     showAppError("Could not save that. Check your connection and try again.");
   }
 }
-const isDayClosed = (items) =>
-  hasToday && items.every((i) => i.doneAt || i.skippedAt);
 
-function renderPlan(entries) {
-  const { sourceDate, items } = getPlan(entries, todayKey());
-  $("plan-list").replaceChildren(
-    ...items.map((i) => buildPlanItem(i, sourceDate)),
-  );
-  $("plan-card").hidden = items.length === 0 || isDayClosed(items);
-}
+
 
 /* ---------- AI insights ---------- */
 
@@ -454,8 +447,8 @@ function renderWeekInsight(s) {
 async function refresh(entries = null) {
   entries ??= await getEntries();
   renderStreak(entries);
-  renderPlan(entries);
-  renderConfirm(entries);
+  renderPriorityCard(entries);
+  syncPriorityMode();
   if (!$("view-week").hidden) await renderWeek();
   renderSyncStatus();
   renderDayInsight();
@@ -516,15 +509,7 @@ async function onSubmit(event) {
   try {
     const previous = await getEntry(todayKey());
     const review = readForm(previous);
-    const { items } = getPlan(await getEntries(), todayKey());
-    if (items.some((i) => needsAnswer(i, todayKey()))) {
-      setStatus("Answer today's plan first.", true);
-      $("confirm-block").scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-      return;
-    }
+
     const problem = validateReview(review);
     if (problem) {
       setStatus(problem.message, true);
@@ -533,7 +518,6 @@ async function onSubmit(event) {
     }
 
     await saveEntry(review);
-    clearForm();
     hasToday = true;
     editing = false;
     setStatus(
@@ -542,7 +526,14 @@ async function onSubmit(event) {
         : "Saved. Tap the button if you need to edit.",
     );
     syncSubmitLabel();
+      if (hasToday && !editing) {
+    fillForm(await getEntry(todayKey()));
+    editing = true;
+    setStatus("Editing today's review.");
+    syncSubmitLabel();
     await refresh();
+    return;
+  }
   } catch (err) {
     console.error("MindLoop: save failed", err);
     setStatus("Could not save. Check your connection and try again.", true);
@@ -872,6 +863,9 @@ async function init() {
   initTabs();
   initWeekNav();
   $("review-form").addEventListener("submit", onSubmit);
+    $("lock-shield").addEventListener("click", () =>
+    setStatus("Review imesave. Bonyeza Edit today's review kwanza."),
+  );
   $("copy-summary").addEventListener("click", onCopySummary);
 
   $("delete-data").addEventListener("click", onDeleteData);
@@ -892,6 +886,7 @@ async function init() {
       try {
         const entries = await getEntries();
         hasToday = entries.some((entry) => entry.date === todayKey());
+                fillForm(entries.find((entry) => entry.date === todayKey()));
         syncSubmitLabel();
         await refresh(entries);
       } catch (err) {
@@ -905,8 +900,12 @@ async function init() {
 }
 document.addEventListener("visibilitychange", async () => {
   if (document.hidden || $("app").hidden) return;
+  const wasSaved = hasToday;
   hasToday = (await getEntry(todayKey())) !== null;
-  editing = false;
+  if (wasSaved && !hasToday) {
+    editing = false; // new day: start a fresh form
+    clearForm();
+  }
   syncSubmitLabel();
   await refresh();
 });
