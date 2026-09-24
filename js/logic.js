@@ -289,3 +289,66 @@ export function buildWeekSummary(entries, weekStart, now) {
 
   return lines.join("\n");
 }
+/* ---------- Facts for AI insights ---------- */
+// Ground-truth numbers sent to the AI. Same source as the Week view.
+
+const clipText = (text, max) => {
+  const t = String(text || "").trim();
+  return t.length > max ? `${t.slice(0, max)}...` : t;
+};
+
+export function weekFacts(entries, weekStart, now) {
+  const s = weekStats(entries, weekStart, now);
+  const worst = worstWeekday(entries);
+  return {
+    week_number: s.number,
+    range: s.range,
+    on_time_means_started_within_minutes: ON_TIME_GRACE_MIN,
+    days_with_review: s.daysFilled,
+    priorities_due: s.due,
+    priorities_started: s.started,
+    priorities_done: s.done,
+    done_rate_percent: s.doneRate,
+    started_on_time: s.onTime,
+    on_time_rate_percent: s.onTimeRate,
+    average_start_delay_minutes: s.avgLateMinutes,
+    top_blocker: s.topReason ? { label: s.topReason.label, days: s.topReason.count } : null,
+    blockers: s.reasons.map((r) => ({ label: r.label, days: r.count })),
+    hardest_weekday_all_time: worst ? { day: worst.day, blocker_days: worst.count } : null,
+    days: s.days
+      .filter((d) => !d.isFuture)
+      .map((d) => ({
+        date: d.date,
+        weekday: d.weekday,
+        review_written: d.filled,
+        priorities_planned: d.planned,
+        priorities_due: d.due,
+        priorities_done: d.done,
+        started_on_time: d.onTime,
+        blocker: d.reason ? REASON_LABELS[d.reason] : null,
+      })),
+  };
+}
+
+export function dayFacts(entries, dateKey, now) {
+  const d = dayStats(entries, dateKey, now);
+  const { items } = getPlan(entries, dateKey);
+  return {
+    date: dateKey,
+    weekday: d.weekday,
+    on_time_means_started_within_minutes: ON_TIME_GRACE_MIN,
+    review_written: d.filled,
+    blocker: d.reason ? REASON_LABELS[d.reason] : null,
+    priorities_planned: d.planned,
+    priorities_due: d.due,
+    priorities_started: d.started,
+    priorities_done: d.done,
+    started_on_time: d.onTime,
+    priorities: items.map((item) => ({
+      task: clipText(item.text, 80),
+      planned_time: item.time || null,
+      status: priorityStatus(item, dateKey, now),
+      start_delay_minutes: startDiffMinutes(item, dateKey),
+    })),
+  };
+}

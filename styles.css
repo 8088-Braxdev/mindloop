@@ -649,3 +649,26 @@ input[type="time"]:focus {
 .legal ul {
   padding-left: 1.25rem;
 }
+.insight-headline {
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+.insight-block {
+  margin-top: 0.75rem;
+}
+.insight-block h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+}
+.insight-block p,
+.insight-block ul {
+  margin: 0;
+}
+.insight-block ul {
+  padding-left: 1.1rem;
+}
+.insight-note {
+  color: var(--muted);
+  font-size: 0.875rem;
+  margin: 0.75rem 0 0;
+}

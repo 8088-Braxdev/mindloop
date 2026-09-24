@@ -252,6 +252,11 @@ export async function clearAll() {
     .delete()
     .gte("date", "1900-01-01");
   if (error) fail("clearAll", error);
+    const { error: insightError } = await supabase
+    .from("insights")
+    .delete()
+    .gte("period_key", "1900-01-01");
+  if (insightError) fail("clearAll", insightError);
   localStorage.removeItem(cacheKey(uid));
   localStorage.removeItem(queueKey(uid));
 }

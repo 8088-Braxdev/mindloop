@@ -17,8 +17,12 @@ import {
   worstWeekday,
   buildWeekSummary,
   needsAnswer,
+  weekFacts,
+  dayFacts,
+  addDays
 } from "./logic.js";
 import { getSession, signInWithGoogle, signOut, cachedUserId } from "./auth.js";
+import { getInsight, requestInsight, clearInsightCache, InsightError } from "./insights.js";
 
 let currentWeek = mondayOf(toDateKey(new Date()));
 let editing = false; // true = fomu ina review ya leo, inaeditiwa
@@ -241,6 +245,147 @@ function renderPlan(entries) {
   $("plan-card").hidden = items.length === 0 || isDayClosed(items);
 }
 
+/* ---------- AI insights ---------- */
+
+const RETRY_COOLDOWN_MS = 8000;
+// Errors where trying again cannot help: hide the button.
+const FINAL_ERRORS = new Set(["user_limit", "already_generated", "at_capacity", "no_data", "too_early"]);
+
+const textEl = (tag, text) => {
+  const el = document.createElement(tag);
+  el.textContent = text; // AI text is never inserted as HTML
+  return el;
+};
+
+function insightBlock(label, content) {
+  const box = document.createElement("div");
+  box.className = "insight-block";
+  box.append(textEl("h3", label), content);
+  return box;
+}
+
+function fillInsight(body, insight, createdAt) {
+  const well = document.createElement("ul");
+  (insight.went_well || []).forEach((t) => well.append(textEl("li", t)));
+
+  const headline = textEl("p", insight.headline);
+  headline.className = "insight-headline";
+  const parts = [
+    headline,
+    insightBlock("What went well", well),
+    insightBlock("Pattern", textEl("p", insight.pattern)),
+    insightBlock("Try next", textEl("p", insight.suggestion)),
+  ];
+  if (insight.data_note) {
+    const note = textEl("p", insight.data_note);
+    note.className = "insight-note";
+    parts.push(note);
+  }
+  if (createdAt) {
+    const when = new Date(createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    const foot = textEl("p", `Written ${when}`);
+    foot.className = "hint";
+    parts.push(foot);
+  }
+  body.replaceChildren(...parts);
+}
+
+// Shows a saved insight, or a button to ask for one. opts: { type, key, available, hint, facts }
+async function showInsight(card, opts) {
+  const token = `${opts.type}:${opts.key}`;
+  // Already showing this period's insight (or waiting for it): leave it alone.
+  if (card.dataset.showing === token && ["found", "busy"].includes(card.dataset.state)) return;
+
+  const body = card.querySelector(".insight-body");
+  const btn = card.querySelector(".insight-btn");
+  const status = card.querySelector(".insight-status");
+  card.dataset.showing = token;
+  card.dataset.state = "";
+  card.hidden = false;
+  body.replaceChildren();
+  status.textContent = "";
+  btn.hidden = true;
+
+  let found = null;
+  try {
+    found = await getInsight(opts.type, opts.key);
+  } catch (err) {
+    console.error("MindLoop: could not read insight", err);
+  }
+  if (card.dataset.showing !== token) return;
+
+  if (found) {
+    fillInsight(body, found.insight, found.createdAt);
+    card.dataset.state = "found";
+    return;
+  }
+  if (!opts.available) {
+    status.textContent = opts.hint;
+    return;
+  }
+
+  btn.hidden = false;
+  btn.disabled = false;
+  btn.onclick = async () => {
+    btn.disabled = true;
+    card.dataset.state = "busy";
+    status.textContent = "Checking your latest changes...";
+    try {
+      await syncNow().catch(() => {});
+      if (hasPending()) {
+        throw new InsightError("syncing", "Your latest changes are still syncing. Try again in a moment.");
+      }
+      status.textContent = "Writing your insight. This can take a few seconds...";
+      const result = await requestInsight(opts.type, opts.key, await opts.facts());
+      if (card.dataset.showing !== token) return;
+      fillInsight(body, result.insight, result.createdAt);
+      card.dataset.state = "found";
+      btn.hidden = true;
+      status.textContent = "";
+    } catch (err) {
+      console.error("MindLoop: insight failed", err);
+      if (card.dataset.showing !== token) return;
+      card.dataset.state = "";
+      status.textContent = err.message || "Something went wrong. Try again in a moment.";
+      if (FINAL_ERRORS.has(err.code)) {
+        btn.hidden = true;
+      } else {
+        setTimeout(() => {
+          btn.disabled = false;
+        }, RETRY_COOLDOWN_MS);
+      }
+    }
+  };
+}
+
+function renderDayInsight() {
+  const card = $("day-insight");
+  if (!hasToday) {
+    card.hidden = true;
+    return;
+  }
+  showInsight(card, {
+    type: "day",
+    key: todayKey(),
+    available: true,
+    facts: async () => dayFacts(await getEntries(), todayKey(), new Date()),
+  });
+}
+
+// The week's insight opens after Sunday's review (or once the week is over),
+// so its one chance per week is not spent on half a week.
+function renderWeekInsight(s) {
+  const weekOver = s.weekStart < mondayOf(todayKey());
+  const sundayDone = todayKey() === addDays(s.weekStart, 6) && hasToday;
+  showInsight($("week-insight"), {
+    type: "week",
+    key: s.weekStart,
+    available: s.daysFilled > 0 && (weekOver || sundayDone),
+    hint: s.daysFilled === 0 ? "No reviews this week." : "Available after Sunday's review.",
+    facts: async () => weekFacts(await getEntries(), s.weekStart, new Date()),
+  });
+}
+
 /* ---------- Refresh + init ---------- */
 
 async function refresh() {
@@ -250,6 +395,7 @@ async function refresh() {
   renderConfirm(entries);
   if (!$("view-week").hidden) await renderWeek();
     renderSyncStatus();
+    renderDayInsight();
 }
 
 // If the text is unchanged, keep the previous done value.
@@ -411,6 +557,7 @@ async function renderWeek() {
 
   renderReasonChart(s);
   renderDayChart(s);
+  renderWeekInsight(s);
 }
 
 function renderSyncStatus() {
@@ -544,6 +691,11 @@ async function onDeleteData() {
   hasToday = false;
   editing = false;
   confirming.clear();
+    clearInsightCache();
+  document.querySelectorAll(".insight-card").forEach((c) => {
+    delete c.dataset.showing;
+    delete c.dataset.state;
+  });
   clearForm();
   syncSubmitLabel();
   $("data-status").textContent = "All data deleted.";

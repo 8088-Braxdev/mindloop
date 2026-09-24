@@ -2,7 +2,7 @@
 // App files are served from the device copy and refreshed in the background.
 // Supabase, Google sign-in and /api/ calls always go to the network.
 
-const CACHE = "mindloop-shell-v2";
+const CACHE = "mindloop-shell-v3";
 const SHELL = [
   "./",
   "index.html",
@@ -12,6 +12,7 @@ const SHELL = [
   "js/storage.js",
   "js/auth.js",
   "js/supabase.js",
+  "js/insights.js",
   "privacy.html",
   "terms.html",
   "manifest.webmanifest",
