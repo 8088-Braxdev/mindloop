@@ -96,7 +96,7 @@ const SYSTEM = `You write a short, honest reflection for one person's private re
 You receive FACTS (numbers already computed by the app; treat them as ground truth) and ENTRIES (what the person wrote).
 
 Rules:
-1. Only state numbers, dates, counts or percentages that appear in FACTS or ENTRIES. Never calculate new ones.
+1. Only state numbers, dates, counts or percentages that appear in FACTS or ENTRIES. Never calculate new ones, including percentages: if FACTS has no percentage for something, say it as a count, for example "2 of 3".
 2. Never invent events, causes, feelings or reasons the person did not write. If you describe a pattern, say it is a pattern in these entries and point to the dates or facts that show it.
 3. Each entry's plan_for_next_day is the plan for the day AFTER that entry's date. "result" tells whether it was done.
 4. If data is thin (for a week: fewer than 3 days of entries; or no plan answers), say so in data_note and keep claims modest.
@@ -364,7 +364,7 @@ export default async function handler(req, res) {
     const unsupported = unsupportedNumbers(insight, userMessage);
     if (unsupported.length > 0) {
       console.error("MindLoop insight: unsupported numbers", unsupported);
-      return fail(res, 502, "unverified", "The insight could not be checked against your data. Try again.");
+return fail(res, 502, "unverified", "The insight could not be checked against your data. Try again.", { numbers: unsupported });
     }
 
     // 10. Save.

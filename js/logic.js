@@ -344,6 +344,8 @@ export function dayFacts(entries, dateKey, now) {
     priorities_started: d.started,
     priorities_done: d.done,
     started_on_time: d.onTime,
+        done_rate_percent: d.due === 0 ? null : Math.round((d.done / d.due) * 100),
+    on_time_rate_percent: d.due === 0 ? null : Math.round((d.onTime / d.due) * 100),
     priorities: items.map((item) => ({
       task: clipText(item.text, 80),
       planned_time: item.time || null,
