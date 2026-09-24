@@ -1,7 +1,7 @@
 // js/ui.js  (part 1 of 2)
 // DOM only. Numbers come from logic.js, data from storage.js.
 
-import { getEntries, getEntry, saveEntry, markPriority, exportAll, clearAll } from "./storage.js";
+import { getEntries, getEntry, saveEntry, markPriority, exportAll, clearAll, syncNow, hasPending, prepareSignOut } from "./storage.js";
 import {
   toDateKey,
   computeStreak,
@@ -18,6 +18,7 @@ import {
   buildWeekSummary,
   needsAnswer,
 } from "./logic.js";
+import { getSession, signInWithGoogle, signOut, cachedUserId } from "./auth.js";
 
 let currentWeek = mondayOf(toDateKey(new Date()));
 let editing = false; // true = fomu ina review ya leo, inaeditiwa
@@ -81,7 +82,7 @@ function renderConfirm(entries) {
   const open = items.filter((i) => needsAnswer(i, todayKey()));
 
   // Block visible only until tonight's review is saved
-$("confirm-block").hidden = items.length === 0 || isDayClosed(items);
+  $("confirm-block").hidden = items.length === 0 || isDayClosed(items);
   // Every field locked until all items are answered
   $("review-fields").disabled = !hasToday && open.length > 0;
 
@@ -160,6 +161,7 @@ function initTabs() {
   });
 }
 
+
 /* ---------- Streak label ---------- */
 
 function renderStreak(entries) {
@@ -171,7 +173,6 @@ function renderStreak(entries) {
     label.textContent = `Streak: ${streak} ${streak === 1 ? "day" : "days"}`;
   }
 }
-
 
 /* ---------- Today's plan ---------- */
 const STATUS_TEXT = {
@@ -221,8 +222,13 @@ function buildPlanItem(item, sourceDate) {
 }
 
 async function onMark(sourceDate, index, field) {
-  await markPriority(sourceDate, index, field);
-  await refresh();
+  try {
+    await markPriority(sourceDate, index, field);
+    await refresh();
+  } catch (err) {
+    console.error("MindLoop: mark failed", err);
+    showAppError("Could not save that. Check your connection and try again.");
+  }
 }
 const isDayClosed = (items) =>
   hasToday && items.every((i) => i.doneAt || i.skippedAt);
@@ -232,7 +238,7 @@ function renderPlan(entries) {
   $("plan-list").replaceChildren(
     ...items.map((i) => buildPlanItem(i, sourceDate)),
   );
- $("plan-card").hidden = items.length === 0 || isDayClosed(items);
+  $("plan-card").hidden = items.length === 0 || isDayClosed(items);
 }
 
 /* ---------- Refresh + init ---------- */
@@ -243,9 +249,8 @@ async function refresh() {
   renderPlan(entries);
   renderConfirm(entries);
   if (!$("view-week").hidden) await renderWeek();
+    renderSyncStatus();
 }
-
-
 
 // If the text is unchanged, keep the previous done value.
 function readForm(previous) {
@@ -305,7 +310,10 @@ async function onSubmit(event) {
     const { items } = getPlan(await getEntries(), todayKey());
     if (items.some((i) => needsAnswer(i, todayKey()))) {
       setStatus("Answer today's plan first.", true);
-      $("confirm-block").scrollIntoView({ behavior: "smooth", block: "center" });
+      $("confirm-block").scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
       return;
     }
     const problem = validate(review);
@@ -319,12 +327,16 @@ async function onSubmit(event) {
     clearForm();
     hasToday = true;
     editing = false;
-    setStatus("Saved. Tap the button if you need to edit.");
+      setStatus(
+      hasPending()
+        ? "Saved on this device. It will sync when you are online."
+        : "Saved. Tap the button if you need to edit.",
+    );
     syncSubmitLabel();
     await refresh();
   } catch (err) {
     console.error("MindLoop: save failed", err);
-    setStatus("Could not save. Your browser may be blocking storage.", true);
+    setStatus("Could not save. Check your connection and try again.", true);
   } finally {
     button.disabled = false;
   }
@@ -401,6 +413,18 @@ async function renderWeek() {
   renderDayChart(s);
 }
 
+function renderSyncStatus() {
+  const el = $("sync-status");
+  if (!navigator.onLine) {
+    el.textContent = "Offline. Changes are saved on this device and will sync when you are back online.";
+    el.hidden = false;
+  } else if (hasPending()) {
+    el.textContent = "Syncing your changes...";
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+  }
+}
 function renderReasonChart(s) {
   const box = $("reason-chart");
   const data = reasonChartData(s);
@@ -507,7 +531,14 @@ async function onDeleteData() {
     }, 4000);
     return;
   }
-  await clearAll();
+    try {
+    await clearAll();
+  } catch (err) {
+    deleteArmed = false;
+    btn.textContent = "Delete all data";
+    $("data-status").textContent = err.message;
+    return;
+  }
   deleteArmed = false;
   btn.textContent = "Delete all data";
   hasToday = false;
@@ -524,7 +555,6 @@ onViewShow.week = () => {
   currentWeek = mondayOf(todayKey());
   renderWeek();
 };
-
 function showAppError(message) {
   const el = $("app-error");
   el.textContent = message;
@@ -540,19 +570,49 @@ window.addEventListener("error", (e) => {
   showAppError("Something went wrong. Refresh the page.");
 });
 
+function showWelcome() {
+  $("app").hidden = true;
+  $("welcome").hidden = false;
+  $("google-signin").addEventListener("click", async () => {
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      console.error("MindLoop: sign-in failed", err);
+      showAppError("Could not start Google sign-in. Try again.");
+    }
+  });
+}
+
 async function init() {
+  const session = await getSession();
+  const offlineUser = !session && !navigator.onLine && cachedUserId();
+  if (!session && !offlineUser) {
+    showWelcome();
+    return;
+  }
+  $("welcome").hidden = true;
+  $("app").hidden = false;
+
   initTabs();
   initWeekNav();
   $("review-form").addEventListener("submit", onSubmit);
   $("copy-summary").addEventListener("click", onCopySummary);
   $("export-data").addEventListener("click", onExport);
-  $("delete-data").addEventListener("click", onDeleteData); 
+  $("delete-data").addEventListener("click", onDeleteData);
+  $("sign-out").addEventListener("click", async () => {
+    if (!(await prepareSignOut())) {
+      showAppError("Some changes have not synced yet. Connect to the internet, then sign out.");
+      return;
+    }
+    await signOut();
+    location.reload();
+  });
   hasToday = (await getEntry(todayKey())) !== null;
   syncSubmitLabel();
   await refresh();
 }
 document.addEventListener("visibilitychange", async () => {
-  if (document.hidden) return;
+  if (document.hidden|| $("app").hidden) return;
   hasToday = (await getEntry(todayKey())) !== null;
   editing = false;
   syncSubmitLabel();
@@ -560,3 +620,19 @@ document.addEventListener("visibilitychange", async () => {
 });
 
 init();
+window.addEventListener("online", async () => {
+  try {
+    await syncNow();
+  } catch (err) {
+    console.error("MindLoop: sync failed", err);
+  }
+  if (!$("app").hidden) await refresh();
+  renderSyncStatus();
+});
+window.addEventListener("offline", renderSyncStatus);
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch((err) => {
+    console.error("MindLoop: service worker failed", err);
+  });
+}

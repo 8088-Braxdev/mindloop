@@ -626,3 +626,26 @@ input[type="time"]:focus {
 
 /* Ujumbe wa error */
 .status.is-error { color: var(--danger, #b4462f); }
+.welcome {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem;
+  text-align: center;
+}
+.welcome-note {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  opacity: 0.7;
+}
+.legal {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+  line-height: 1.6;
+}
+.legal h2 {
+  margin-top: 2rem;
+}
+.legal ul {
+  padding-left: 1.25rem;
+}

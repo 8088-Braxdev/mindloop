@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "api/insight.js": { "maxDuration": 30 }
+  }
+}

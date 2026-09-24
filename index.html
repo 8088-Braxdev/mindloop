@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MindLoop</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f6f1ea">
 </head>
 
 <body>
@@ -50,146 +52,162 @@
             </symbol>
         </defs>
     </svg>
-
-    <header class="topbar">
-        <h1>MindLoop</h1>
-        <p class="streak">
-            <svg class="icon">
-                <use href="#i-flame" />
-            </svg>
-            <span id="streak-label"></span>
-        </p>
-    </header>
     <p id="app-error" class="status is-error" role="alert" hidden></p>
 
-    <nav class="tabs">
-        <button class="tab is-active" data-view="today">
-            <svg class="icon">
-                <use href="#i-sun" />
-            </svg>
-            <span>Today</span>
-        </button>
-        <button class="tab" data-view="week">
-            <svg class="icon">
-                <use href="#i-chart" />
-            </svg>
-            <span>Week</span>
-        </button>
-    </nav>
+    <section id="welcome" class="welcome" hidden>
+        <h1>MindLoop</h1>
+        <p>Two minutes each night. Write down tomorrow's three priorities, then be honest about what you did.</p>
+        <button id="google-signin" class="primary" type="button">Continue with Google</button>
+<p class="welcome-note">
+    Your reviews are saved to your account and stay private to you. When you tap an AI insight button, that period's reviews are sent to an AI provider to write the insight.
+    By continuing you agree to the <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.
+</p>
+    </section>
 
-    <main>
+    <div id="app" hidden>
 
-        <!-- TODAY VIEW -->
-        <section id="view-today" class="view">
-
-            <!-- Today's plan: written last night, each item has Start-->
-            <div id="plan-card" class="card" hidden>
-                <h2>Today's plan</h2>
-                <ul id="plan-list" class="plan-list"></ul>
-            </div>
-
-            <!-- Night review -->
-            <form id="review-form" class="card">
-                <h2>Tonight's review</h2>
-                <div id="confirm-block" hidden>
-                    <h3>Today's plan: be honest</h3>
-                    <p class="hint">Answer each one to unlock the review.</p>
-                    <ul id="confirm-list" class="plan-list"></ul>
-                </div>
-                <fieldset id="review-fields">
-                    <label for="wins">What went well?</label>
-                    <textarea id="wins" rows="3"></textarea>
-
-                    <label for="challenges">What didn't go well?</label>
-                    <textarea id="challenges" rows="3"></textarea>
-
-                    <label for="reason">Main reason</label>
-                    <select id="reason">
-                        <option value="">Nothing went wrong</option>
-                        <option value="distraction">Distractions / social media</option>
-                        <option value="overwhelmed">Task felt too big</option>
-                        <option value="fatigue">Low energy</option>
-                        <option value="motivation">Low motivation</option>
-                    </select>
-
-                    <label for="lessons">What did I learn?</label>
-                    <textarea id="lessons" rows="2"></textarea>
-
-                    <h3>Tomorrow's 3 priorities</h3>
-                    <p class="hint">Write the task and the time you will start it.</p>
-
-                    <div class="priority-row">
-                        <input id="p1" type="text" maxlength="120" placeholder="Priority 1" aria-label="Priority 1">
-                        <input id="t1" type="time" aria-label="Start time for priority 1">
-                    </div>
-                    <div class="priority-row">
-                        <input id="p2" type="text" maxlength="120" placeholder="Priority 2" aria-label="Priority 2">
-                        <input id="t2" type="time" aria-label="Start time for priority 2">
-                    </div>
-                    <div class="priority-row">
-                        <input id="p3" type="text" maxlength="120" placeholder="Priority 3" aria-label="Priority 3">
-                        <input id="t3" type="time" aria-label="Start time for priority 3">
-                    </div>
-
-                    <button type="submit" class="primary">Save review</button>
-                </fieldset>
-                <p id="form-status" class="status" role="status"></p>
-            </form>
-        </section>
-
-        <!-- WEEK VIEW -->
-        <section id="view-week" class="view" hidden>
-
-            <div class="week-nav">
-                <button id="week-prev" class="icon-btn" type="button" aria-label="Previous week">
-                    <svg class="icon">
-                        <use href="#i-left" />
-                    </svg>
-                </button>
-                <div class="week-title">
-                    <h2 id="week-title"></h2>
-                    <p id="week-range"></p>
-                </div>
-                <button id="week-next" class="icon-btn" type="button" aria-label="Next week">
-                    <svg class="icon">
-                        <use href="#i-right" />
-                    </svg>
-                </button>
-            </div>
-
-            <!-- 7 day cells, filled by JS -->
-            <div id="week-days" class="day-strip"></div>
-
-            <div id="week-stats" class="card"></div>
-
-            <div class="card">
-                <h2>Blockers</h2>
-                <div id="reason-chart"></div>
-            </div>
-
-            <div class="card">
-                <h2>Priorities done per day</h2>
-                <div id="day-chart" class="day-chart"></div>
-            </div>
-
-            <button id="copy-summary" class="primary" type="button">
+        <header class="topbar">
+            <h1>MindLoop</h1>
+            <p class="streak">
                 <svg class="icon">
-                    <use href="#i-copy" />
+                    <use href="#i-flame" />
                 </svg>
-                <span>Copy week summary</span>
-            </button>
-            <p id="copy-status" class="status" role="status"></p>
-            <div class="card">
-                <h2>Your data</h2>
-                <p class="hint">Stored only in this browser.</p>
-                <button id="export-data" class="plan-btn" type="button">Export JSON</button>
-                <button id="delete-data" class="plan-btn" type="button">Delete all data</button>
-                <p id="data-status" class="status" role="status"></p>
-            </div>
-        </section>
-    </main>
+                <span id="streak-label"></span>
+            </p>
+        </header>
+<p id="sync-status" class="status" role="status" hidden></p>
 
-    <script type="module" src="js/ui.js"></script>
+        <nav class="tabs">
+            <button class="tab is-active" data-view="today">
+                <svg class="icon">
+                    <use href="#i-sun" />
+                </svg>
+                <span>Today</span>
+            </button>
+            <button class="tab" data-view="week">
+                <svg class="icon">
+                    <use href="#i-chart" />
+                </svg>
+                <span>Week</span>
+            </button>
+        </nav>
+
+        <main>
+
+            <!-- TODAY VIEW -->
+            <section id="view-today" class="view">
+
+                <!-- Today's plan: written last night, each item has Start-->
+                <div id="plan-card" class="card" hidden>
+                    <h2>Today's plan</h2>
+                    <ul id="plan-list" class="plan-list"></ul>
+                </div>
+
+                <!-- Night review -->
+                <form id="review-form" class="card">
+                    <h2>Tonight's review</h2>
+                    <div id="confirm-block" hidden>
+                        <h3>Today's plan: be honest</h3>
+                        <p class="hint">Answer each one to unlock the review.</p>
+                        <ul id="confirm-list" class="plan-list"></ul>
+                    </div>
+                    <fieldset id="review-fields">
+                        <label for="wins">What went well?</label>
+                        <textarea id="wins" rows="3"></textarea>
+
+                        <label for="challenges">What didn't go well?</label>
+                        <textarea id="challenges" rows="3"></textarea>
+
+                        <label for="reason">Main reason</label>
+                        <select id="reason">
+                            <option value="">Nothing went wrong</option>
+                            <option value="distraction">Distractions / social media</option>
+                            <option value="overwhelmed">Task felt too big</option>
+                            <option value="fatigue">Low energy</option>
+                            <option value="motivation">Low motivation</option>
+                        </select>
+
+                        <label for="lessons">What did I learn?</label>
+                        <textarea id="lessons" rows="2"></textarea>
+
+                        <h3>Tomorrow's 3 priorities</h3>
+                        <p class="hint">Write the task and the time you will start it.</p>
+
+                        <div class="priority-row">
+                            <input id="p1" type="text" maxlength="120" placeholder="Priority 1" aria-label="Priority 1">
+                            <input id="t1" type="time" aria-label="Start time for priority 1">
+                        </div>
+                        <div class="priority-row">
+                            <input id="p2" type="text" maxlength="120" placeholder="Priority 2" aria-label="Priority 2">
+                            <input id="t2" type="time" aria-label="Start time for priority 2">
+                        </div>
+                        <div class="priority-row">
+                            <input id="p3" type="text" maxlength="120" placeholder="Priority 3" aria-label="Priority 3">
+                            <input id="t3" type="time" aria-label="Start time for priority 3">
+                        </div>
+
+                        <button type="submit" class="primary">Save review</button>
+                    </fieldset>
+                    <p id="form-status" class="status" role="status"></p>
+                </form>
+            </section>
+
+            <!-- WEEK VIEW -->
+            <section id="view-week" class="view" hidden>
+
+                <div class="week-nav">
+                    <button id="week-prev" class="icon-btn" type="button" aria-label="Previous week">
+                        <svg class="icon">
+                            <use href="#i-left" />
+                        </svg>
+                    </button>
+                    <div class="week-title">
+                        <h2 id="week-title"></h2>
+                        <p id="week-range"></p>
+                    </div>
+                    <button id="week-next" class="icon-btn" type="button" aria-label="Next week">
+                        <svg class="icon">
+                            <use href="#i-right" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- 7 day cells, filled by JS -->
+                <div id="week-days" class="day-strip"></div>
+
+                <div id="week-stats" class="card"></div>
+
+                <div class="card">
+                    <h2>Blockers</h2>
+                    <div id="reason-chart"></div>
+                </div>
+
+                <div class="card">
+                    <h2>Priorities done per day</h2>
+                    <div id="day-chart" class="day-chart"></div>
+                </div>
+
+                <button id="copy-summary" class="primary" type="button">
+                    <svg class="icon">
+                        <use href="#i-copy" />
+                    </svg>
+                    <span>Copy week summary</span>
+                </button>
+                <p id="copy-status" class="status" role="status"></p>
+                <div class="card">
+                    <h2>Your data</h2>
+                    <p class="hint">Saved to your account.</p>
+                    <button id="export-data" class="plan-btn" type="button">Export JSON</button>
+                    <button id="delete-data" class="plan-btn" type="button">Delete all data</button>
+                    <button id="sign-out" class="plan-btn" type="button">Sign out</button>
+                    <p id="data-status" class="status" role="status"></p>
+                    <p class="hint"><a href="privacy.html">Privacy Policy</a> and <a href="terms.html">Terms</a></p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+        <script type="module" src="js/ui.js"></script>
 </body>
 
 </html>
