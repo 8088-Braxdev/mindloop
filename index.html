@@ -120,9 +120,10 @@
             <section id="view-today" class="view">
 
                 <!-- Today's plan: written last night, each item has Start-->
-<div id="priority-review" class="card" hidden>
-    <h2 id="priority-title">Today's priorities</h2>
-    <ul id="priority-list" class="plan-list"></ul>
+              <div id="priority-review" class="card" hidden>
+  <h3 class="priority-head">Tomorrow's 3 priorities</h3>
+<p class="hint priority-head">Write the task and the time you will start it.</p>
+<p class="hint priority-head">Write carefully — these lock once you save tonight's review and can't be edited until tomorrow.</p>
 </div>
 
                 <div id="day-insight" class="card insight-card" hidden>
@@ -136,48 +137,55 @@
                 <!-- Night review -->
                 <form id="review-form" class="card">
                     <h2>Tonight's review</h2>
-                
+                    <!-- Add this where the "shield" should appear -->
+                    <p id="form-status" class="status" role="status"></p>
                     <fieldset id="review-fields">
+
                         <div class="lock-wrap">
-                        <label for="wins">What went well?</label>
-                        <textarea id="wins" rows="3"></textarea>
+                            <label for="wins">What went well?</label>
+                            <!-- Add this where the "shield" should appear -->
+                            <div id="lock-shield" hidden></div>
+                            <textarea id="wins" rows="3"></textarea>
 
-                        <label for="challenges">What didn't go well?</label>
-                        <textarea id="challenges" rows="3"></textarea>
+                            <label for="challenges">What didn't go well?</label>
+                            <textarea id="challenges" rows="3"></textarea>
 
-                        <label for="reason">Main reason</label>
-                        <select id="reason">
-                            <option value="">Nothing went wrong</option>
-                            <option value="distraction">Distractions / social media</option>
-                            <option value="overwhelmed">Task felt too big</option>
-                            <option value="fatigue">Low energy</option>
-                            <option value="motivation">Low motivation</option>
-                        </select>
+                            <label for="reason">Main reason</label>
+                            <select id="reason">
+                                <option value="">Nothing went wrong</option>
+                                <option value="distraction">Distractions / social media</option>
+                                <option value="overwhelmed">Task felt too big</option>
+                                <option value="fatigue">Low energy</option>
+                                <option value="motivation">Low motivation</option>
+                            </select>
 
-                        <label for="lessons">What did I learn?</label>
-                        <textarea id="lessons" rows="2"></textarea>
+                            <label for="lessons">What did I learn?</label>
+                            <textarea id="lessons" rows="2"></textarea>
 
-                     <h3 class="priority-head">Tomorrow's 3 priorities</h3>
-<p class="hint priority-head">Write the task and the time you will start it.</p>
+                            <h3 class="priority-head">Tomorrow's 3 priorities</h3>
+                            <p class="hint priority-head">Write the task and the time you will start it.</p>
 
-                        <div class="priority-row">
-                            <input id="p1" type="text" maxlength="120" placeholder="Priority 1" aria-label="Priority 1">
-                            <input id="t1" type="time" aria-label="Start time for priority 1">
-                        </div>
-                        <div class="priority-row">
-                            <input id="p2" type="text" maxlength="120" placeholder="Priority 2" aria-label="Priority 2">
-                            <input id="t2" type="time" aria-label="Start time for priority 2">
-                        </div>
-                        <div class="priority-row">
-                            <input id="p3" type="text" maxlength="120" placeholder="Priority 3" aria-label="Priority 3">
-                            <input id="t3" type="time" aria-label="Start time for priority 3">
-                        </div>
+                            <div class="priority-row">
+                                <input id="p1" type="text" maxlength="120" placeholder="Priority 1"
+                                    aria-label="Priority 1">
+                                <input id="t1" type="time" aria-label="Start time for priority 1">
+                            </div>
+                            <div class="priority-row">
+                                <input id="p2" type="text" maxlength="120" placeholder="Priority 2"
+                                    aria-label="Priority 2">
+                                <input id="t2" type="time" aria-label="Start time for priority 2">
+                            </div>
+                            <div class="priority-row">
+                                <input id="p3" type="text" maxlength="120" placeholder="Priority 3"
+                                    aria-label="Priority 3">
+                                <input id="t3" type="time" aria-label="Start time for priority 3">
+                            </div>
 
-                        
-                        <button type="submit" class="primary">Save review</button>
+
+                            <button type="submit" class="primary">Save review</button>
                         </div>
                     </fieldset>
-                    <p id="form-status" class="status" role="status"></p>
+
                 </form>
             </section>
 

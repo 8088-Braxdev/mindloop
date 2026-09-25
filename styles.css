@@ -706,3 +706,9 @@ input[type="time"]:focus {
 .lock-wrap { position: relative; }
 .lock-shield { position: absolute; inset: 0; z-index: 1; }
 .lock-wrap .primary { position: relative; z-index: 2; }
+.plan-complete {
+  padding: 16px 0;
+  text-align: center;
+  color: var(--muted);
+  font-weight: 600;
+}

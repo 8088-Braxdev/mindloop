@@ -54,7 +54,9 @@ function clearForm() {
 function syncPriorityMode() {
   const locked = hasToday && !editing;
   document
-    .querySelectorAll("#review-fields .priority-row, #review-fields .priority-head")
+    .querySelectorAll(
+      "#review-fields .priority-row, #review-fields .priority-head",
+    )
     .forEach((el) => {
       el.style.display = locked ? "none" : "";
     });
@@ -86,7 +88,6 @@ async function answer(sourceDate, index, field) {
   confirming.delete(index);
   await onMark(sourceDate, index, field);
 }
-
 
 /* ---------- Helpers ---------- */
 
@@ -144,7 +145,12 @@ function planButton(iconId, label, onClick) {
   btn.addEventListener("click", onClick);
   return btn;
 }
-
+function completionMessage() {
+  const li = document.createElement("li");
+  li.className = "plan-complete";
+  li.textContent = "All three priorities done. Well done today. 🎉";
+  return li;
+}
 function buildPlanItem(item, sourceDate, planDate) {
   const status = priorityStatus(item, planDate, new Date());
 
@@ -213,11 +219,25 @@ function renderPriorityCard(entries) {
     todayKey(),
     hasToday && !editing,
   );
-  $("priority-title").textContent =
-    planDate > todayKey() ? "Tomorrow's priorities" : "Today's priorities";
-  $("priority-list").replaceChildren(
-    ...items.map((i) => buildPlanItem(i, sourceDate, planDate)),
-  );
+  const isPreview = planDate > todayKey();
+  const allDone =
+    !isPreview && items.length > 0 && items.every((i) => i.doneAt || i.skippedAt);
+
+  $("priority-title").textContent = isPreview
+    ? "Tomorrow's priorities"
+    : "Today's priorities";
+
+  const hint = $("priority-hint");
+  hint.textContent = "Locked until tomorrow. Fill it in carefully — it can't be edited once tonight's review is saved.";
+  hint.hidden = !isPreview;
+
+  if (allDone) {
+    $("priority-list").replaceChildren(completionMessage());
+  } else {
+    $("priority-list").replaceChildren(
+      ...items.map((i) => buildPlanItem(i, sourceDate, planDate)),
+    );
+  }
   $("priority-review").hidden = items.length === 0 || editing;
 }
 
@@ -230,8 +250,6 @@ async function onMark(sourceDate, index, field) {
     showAppError("Could not save that. Check your connection and try again.");
   }
 }
-
-
 
 /* ---------- AI insights ---------- */
 
@@ -526,14 +544,7 @@ async function onSubmit(event) {
         : "Saved. Tap the button if you need to edit.",
     );
     syncSubmitLabel();
-      if (hasToday && !editing) {
-    fillForm(await getEntry(todayKey()));
-    editing = true;
-    setStatus("Editing today's review.");
-    syncSubmitLabel();
     await refresh();
-    return;
-  }
   } catch (err) {
     console.error("MindLoop: save failed", err);
     setStatus("Could not save. Check your connection and try again.", true);
@@ -862,15 +873,26 @@ async function init() {
 
   initTabs();
   initWeekNav();
-  $("review-form").addEventListener("submit", onSubmit);
-    $("lock-shield").addEventListener("click", () =>
-    setStatus("Review imesave. Bonyeza Edit today's review kwanza."),
+  // Locate the line around 866 in ui.js
+  const shield = $("lock-shield");
+  if (shield) {
+    shield.addEventListener("click", () => {
+      // your click logic here
+    });
+  } else {
+    console.warn("MindLoop: lock-shield element not found in DOM.");
+  }
+  // Use optional chaining (?.) to safely call addEventListener only if the element exists
+  $("review-form")?.addEventListener("submit", onSubmit);
+  $("lock-shield")?.addEventListener("click", () =>
+    setStatus("Review saved. Click the button to edit."),
   );
-  $("copy-summary").addEventListener("click", onCopySummary);
+  $("copy-summary")?.addEventListener("click", onCopySummary);
+  $("delete-data")?.addEventListener("click", onDeleteData);
 
-  $("delete-data").addEventListener("click", onDeleteData);
   initAccountDelete();
-  $("sign-out").addEventListener("click", async () => {
+
+  $("sign-out")?.addEventListener("click", async () => {
     if (!(await prepareSignOut())) {
       showAppError(
         "Some changes have not synced yet. Connect to the internet, then sign out.",
@@ -886,7 +908,7 @@ async function init() {
       try {
         const entries = await getEntries();
         hasToday = entries.some((entry) => entry.date === todayKey());
-                fillForm(entries.find((entry) => entry.date === todayKey()));
+        fillForm(entries.find((entry) => entry.date === todayKey()));
         syncSubmitLabel();
         await refresh(entries);
       } catch (err) {
