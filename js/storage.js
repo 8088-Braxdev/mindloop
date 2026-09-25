@@ -181,7 +181,8 @@ export async function getEntries() {
     writeCache(uid, map);
     return Object.values(withPending(uid, map));
   } catch (err) {
-    if (!isNetworkError(err)) fail("getEntries", err);
+    // Reading never fails the user: log it, fall back to the cache.
+    console.error("MindLoop: getEntries failed, using cache", err);
     return Object.values(withPending(uid, readJson(cacheKey(uid))));
   }
 }
@@ -203,11 +204,17 @@ export async function getEntry(dateKey) {
     if (error) throw error;
     return data ? toEntry(data) : null;
   } catch (err) {
-    if (!isNetworkError(err)) fail("getEntry", err);
+    console.error("MindLoop: getEntry failed, using cache", err);
     return readJson(cacheKey(uid))[dateKey] || null;
   }
 }
-
+// Local data only (cache + pending). No network call — for fast, frequent
+// UI updates right after a save/mark, when the change is already known.
+export function getEntriesLocal() {
+  const uid = cachedUserId();
+  if (!uid) return [];
+  return Object.values(withPending(uid, readJson(cacheKey(uid))));
+}
 // Create or replace the entry for entry.date.
 // The change is written to this device first, then sent. Offline, it waits in the queue.
 export async function saveEntry(entry) {
@@ -220,7 +227,9 @@ export async function saveEntry(entry) {
   try {
     await syncNow();
   } catch (err) {
-    if (!isNetworkError(err)) throw err;
+    // Entry is already safe on this device (queued above).
+    // Never fail the save because of a sync-side error.
+    logSyncError(err);
   }
   return entry;
 }

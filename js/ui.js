@@ -10,6 +10,7 @@ import {
   syncNow,
   hasPending,
   prepareSignOut,
+  getEntriesLocal,
 } from "./storage.js";
 import {
   toDateKey,
@@ -33,7 +34,7 @@ import {
   isDeleteConfirmed,
   getCardPlan,
 } from "./logic.js";
-import { getSession, signInWithGoogle, signOut, cachedUserId } from "./auth.js";
+import { getSession, signInWithGoogle, signOut, cachedUserId, getUserDisplay } from "./auth.js";
 import { deleteAccount } from "./account.js";
 import {
   getInsight,
@@ -221,13 +222,21 @@ function renderPriorityCard(entries) {
   );
   const isPreview = planDate > todayKey();
   const allDone =
-    !isPreview && items.length > 0 && items.every((i) => i.doneAt || i.skippedAt);
+    !isPreview &&
+    items.length > 0 &&
+    items.every((i) => i.doneAt || i.skippedAt);
 
   $("priority-title").textContent = isPreview
     ? "Tomorrow's priorities"
     : "Today's priorities";
 
- 
+  $("lock-countdown").hidden = !isPreview;
+  if (isPreview) {
+    startCountdown();
+  } else {
+    stopCountdown();
+  }
+
   if (allDone) {
     $("priority-list").replaceChildren(completionMessage());
   } else {
@@ -464,7 +473,7 @@ async function refresh(entries = null) {
   renderStreak(entries);
   renderPriorityCard(entries);
   syncPriorityMode();
-  if (!$("view-week").hidden) await renderWeek();
+  if (!$("view-week").hidden) await renderWeek(entries);
   renderSyncStatus();
   renderDayInsight();
 }
@@ -512,11 +521,12 @@ async function onSubmit(event) {
   const button = event.target.querySelector("button[type='submit']");
 
   // Imeshasaviwa leo na hatuedit bado: click hii inamaanisha "Edit"
-  if (hasToday && !editing) {
+if (hasToday && !editing) {
     fillForm(await getEntry(todayKey()));
     editing = true;
     setStatus("Editing today's review.");
     syncSubmitLabel();
+    syncPriorityMode();
     return;
   }
 
@@ -571,8 +581,8 @@ function statRow(label, value) {
 const ratio = (part, whole, rate) =>
   rate === null ? "No data yet" : `${part}/${whole} (${rate}%)`;
 
-async function renderWeek() {
-  const entries = await getEntries();
+async function renderWeek(entries = null) {
+  entries ??= getEntriesLocal();
   const s = weekStats(entries, currentWeek, new Date());
 
   $("week-title").textContent = `Week ${s.number}`;
@@ -637,8 +647,8 @@ function renderSyncStatus() {
     el.hidden = false;
   } else {
     if (wasPending) {
-      syncedUntil = Date.now() + 4000;
-      setTimeout(renderSyncStatus, 4100);
+      syncedUntil = Date.now() + 6000;
+      setTimeout(renderSyncStatus, 6100);
     }
     if (Date.now() < syncedUntil) {
       el.textContent = "Synced. Your changes are saved to your account. ✅";
@@ -802,12 +812,55 @@ window.addEventListener("error", (e) => {
   showAppError("Something went wrong. Refresh the page.");
 });
 
+function renderUserChip(session) {
+  const info = getUserDisplay(session);
+  if (!info) return;
+  $("user-avatar").src = info.avatar || "icons/icon-192.png";
+  $("user-name").textContent = info.name;
+  $("user-email").textContent = info.email;
+  $("user-chip").hidden = false;
+}
+
+function initUserMenu() {
+  $("user-chip")?.addEventListener("click", () => {
+    $("user-menu").hidden = !$("user-menu").hidden;
+  });
+  document.addEventListener("click", (e) => {
+    if (
+      !$("user-menu").hidden &&
+      !$("user-menu").contains(e.target) &&
+      !$("user-chip").contains(e.target)
+    ) {
+      $("user-menu").hidden = true;
+    }
+  });
+}
+
+async function handleSignOut() {
+  if (!(await prepareSignOut())) {
+    showAppError(
+      "Some changes have not synced yet. Connect to the internet, then sign out.",
+    );
+    return;
+  }
+  await signOut();
+  location.reload();
+}
+function hideSplash() {
+  const splash = $("splash");
+  if (!splash) return;
+  splash.classList.add("is-hiding");
+  setTimeout(() => {
+    splash.hidden = true;
+  }, 1000);
+}
 function showWelcome() {
   $("app").hidden = true;
   $("welcome").hidden = false;
   $("google-signin").addEventListener("click", async () => {
     try {
       await signInWithGoogle();
+      location.reload();
     } catch (err) {
       console.error("MindLoop: sign-in failed", err);
       showAppError("Could not start Google sign-in. Try again.");
@@ -859,14 +912,26 @@ function initAccountDelete() {
   });
 }
 async function init() {
+  const splashStart = Date.now();
   const session = await getSession();
   const offlineUser = !session && !navigator.onLine && cachedUserId();
+
+  // Show the logo for at least this long, even on a fast connection.
+  const MIN_SPLASH_MS = 1200;
+  const elapsed = Date.now() - splashStart;
+  if (elapsed < MIN_SPLASH_MS) {
+    await new Promise((r) => setTimeout(r, MIN_SPLASH_MS - elapsed));
+  }
+  hideSplash();
+
   if (!session && !offlineUser) {
     showWelcome();
     return;
   }
   $("welcome").hidden = true;
   $("app").hidden = false;
+    renderUserChip(session);
+  initUserMenu();
 
   initTabs();
   initWeekNav();
@@ -889,16 +954,8 @@ async function init() {
 
   initAccountDelete();
 
-  $("sign-out")?.addEventListener("click", async () => {
-    if (!(await prepareSignOut())) {
-      showAppError(
-        "Some changes have not synced yet. Connect to the internet, then sign out.",
-      );
-      return;
-    }
-    await signOut();
-    location.reload();
-  });
+  
+  $("sign-out-btn")?.addEventListener("click", handleSignOut);
   syncSubmitLabel();
   requestAnimationFrame(() => {
     setTimeout(async () => {
@@ -937,7 +994,14 @@ window.addEventListener("online", async () => {
   } catch (err) {
     console.error("MindLoop: sync failed", err);
   }
-  if (!$("app").hidden) await refresh();
+  if (!$("app").hidden) {
+    try {
+      const entries = await getEntries();
+      await refresh(entries);
+    } catch (err) {
+      console.error("MindLoop: refresh after online failed", err);
+    }
+  }
   renderSyncStatus();
 });
 window.addEventListener("offline", renderSyncStatus);
@@ -946,4 +1010,49 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch((err) => {
     console.error("MindLoop: service worker failed", err);
   });
+}
+let countdownTimer = null;
+
+function formatCountdown(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `Unlocks in ${h}h ${m}m ${s}s`;
+}
+
+async function tickCountdown() {
+  const el = $("lock-countdown");
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const diff = midnight - now;
+
+  if (diff <= 0) {
+    // Siku mpya imeanza wakati app iko wazi: refresh state bila reload
+    stopCountdown();
+    const wasSaved = hasToday;
+    hasToday = (await getEntry(todayKey())) !== null;
+    if (wasSaved && !hasToday) {
+      editing = false;
+      clearForm();
+    }
+    syncSubmitLabel();
+    await refresh();
+    return;
+  }
+  el.textContent = formatCountdown(diff);
+}
+
+function startCountdown() {
+  stopCountdown();
+  tickCountdown();
+  countdownTimer = setInterval(tickCountdown, 1000); // kila sekunde: "live"
+}
+
+function stopCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
 }

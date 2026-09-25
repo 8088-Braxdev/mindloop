@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MindLoop: 2-minute nightly review and daily plan</title>
+    <title>MindLoop: A calm nightly review and daily plan</title>
     <meta name="description"
-        content="MindLoop is a two-minute nightly review. Note your wins and challenges, plan tomorrow's three priorities with start times, and keep your streak.">
+        content="MindLoop is a nightly review. Note your wins and challenges, plan tomorrow's three priorities with start times, and keep your streak.">
     <link rel="canonical" href="https://mindloop.braxcode.com/">
 
     <link rel="icon" href="favicon.ico" sizes="any">
@@ -16,9 +16,9 @@
 
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="MindLoop">
-    <meta property="og:title" content="MindLoop: 2-minute nightly review">
+    <meta property="og:title" content="MindLoop: A calm nightly review">
     <meta property="og:description"
-        content="Two minutes each night. Plan tomorrow's three priorities, then be honest about what you did.">
+        content="Reflect on your day, plan tomorrow's three priorities, then be honest about what you did.">
     <meta property="og:url" content="https://mindloop.braxcode.com/">
     <meta property="og:image" content="https://mindloop.braxcode.com/icons/icon-512.png">
     <meta name="twitter:card" content="summary">
@@ -67,14 +67,26 @@
             <symbol id="i-x" viewBox="0 0 24 24">
                 <path d="M18 6 6 18M6 6l12 12" />
             </symbol>
+            <symbol id="i-whatsapp" viewBox="0 0 24 24">
+                <path
+                    d="M17.6 6.3A8.8 8.8 0 0 0 3.6 16.8L2 22l5.3-1.6A8.8 8.8 0 0 0 21 12.4a8.7 8.7 0 0 0-3.4-6.1zM12 19.5a7.4 7.4 0 0 1-3.8-1l-.3-.2-2.8.8.8-2.7-.2-.3A7.5 7.5 0 1 1 19.5 12 7.4 7.4 0 0 1 12 19.5zm4.1-5.6c-.2-.1-1.3-.7-1.5-.7s-.4-.1-.5.1-.5.7-.6.8-.2.2-.4.1a6.1 6.1 0 0 1-1.8-1.1 6.7 6.7 0 0 1-1.2-1.6c-.1-.2 0-.3.1-.4l.3-.4.2-.3a.4.4 0 0 0 0-.4c-.1-.1-.5-1.2-.7-1.7s-.4-.4-.5-.4h-.4a.9.9 0 0 0-.6.3 2.6 2.6 0 0 0-.8 1.9 4.5 4.5 0 0 0 1 2.4 10.2 10.2 0 0 0 3.9 3.4c.5.2 1 .4 1.3.5a3.1 3.1 0 0 0 1.4.1 2.3 2.3 0 0 0 1.5-1.1 1.9 1.9 0 0 0 .1-1.1c-.1-.1-.2-.2-.4-.3z" />
+            </symbol>
         </defs>
     </svg>
+    <section id="splash" class="splash">
+    <img class="splash-logo" src="icons/icon-192.png" width="120" height="120" alt="MindLoop logo">
+</section>
     <p id="app-error" class="status is-error" role="alert" hidden></p>
 
     <section id="welcome" class="welcome" hidden>
-        <img class="welcome-logo" src="icons/icon-192.png" width="96" height="96" alt="MindLoop logo">
+        <img class="welcome-logo" src="icons/icon-192.png" width="110" height="110" alt="MindLoop logo">
         <h1>MindLoop</h1>
-        <p>Two minutes each night. Write down tomorrow's three priorities, then be honest about what you did.</p>
+        <p class="welcome-tagline">A calm nightly review, and a clear plan for tomorrow.</p>
+        <ul class="welcome-points">
+            <li>Reflect on your wins and challenges each night</li>
+            <li>Plan tomorrow's 3 priorities with start times</li>
+            <li>Build a streak, and get AI insights on your patterns</li>
+        </ul>
         <button id="google-signin" class="primary" type="button">Continue with Google</button>
         <p class="welcome-note">
             Your reviews are saved to your account and stay private to you. When you tap an AI insight button, that
@@ -96,6 +108,14 @@
                 </svg>
                 <span id="streak-label"></span>
             </p>
+            <button id="user-chip" class="user-chip" hidden>
+                <img id="user-avatar" class="user-avatar" alt="" />
+            </button>
+            <div id="user-menu" class="user-menu" hidden>
+                <p id="user-name" class="user-name"></p>
+                <p id="user-email" class="user-email"></p>
+                <button id="sign-out-btn">Sign out</button>
+            </div>
         </header>
         <p id="sync-status" class="status" role="status" hidden></p>
 
@@ -120,10 +140,11 @@
             <section id="view-today" class="view">
 
                 <!-- Today's plan: written last night, each item has Start-->
-<div id="priority-review" class="card" hidden>
-    <h2 id="priority-title">Today's priorities</h2>
-    <ul id="priority-list" class="plan-list"></ul>
-</div>
+                <div id="priority-review" class="card" hidden>
+                    <h2 id="priority-title">Today's priorities</h2>
+                    <p id="lock-countdown" class="hint" hidden></p>
+                    <ul id="priority-list" class="plan-list"></ul>
+                </div>
 
                 <div id="day-insight" class="card insight-card" hidden>
                     <h2>Today's insight</h2>
@@ -137,13 +158,14 @@
                 <form id="review-form" class="card">
                     <h2>Tonight's review</h2>
                     <!-- Add this where the "shield" should appear -->
-                    <p id="form-status" class="status" role="status"></p>
+
                     <fieldset id="review-fields">
 
                         <div class="lock-wrap">
                             <label for="wins">What went well?</label>
                             <!-- Add this where the "shield" should appear -->
-                            <div id="lock-shield" hidden></div>
+                            <div id="lock-shield" class="lock-shield" hidden></div>
+
                             <textarea id="wins" rows="3"></textarea>
 
                             <label for="challenges">What didn't go well?</label>
@@ -157,13 +179,16 @@
                                 <option value="fatigue">Low energy</option>
                                 <option value="motivation">Low motivation</option>
                             </select>
+                            <p class="hint">"Nothing went wrong" won't show up in your weekly blockers chart — it only
+                                tracks real reasons.</p>
 
                             <label for="lessons">What did I learn?</label>
                             <textarea id="lessons" rows="2"></textarea>
 
                             <h3 class="priority-head">Tomorrow's 3 priorities</h3>
                             <p class="hint priority-head">Write the task and the time you will start it.</p>
-
+                            <p class="hint priority-head">Write carefully — these lock once you save tonight's review
+                                and can't be edited until tomorrow.</p>
                             <div class="priority-row">
                                 <input id="p1" type="text" maxlength="120" placeholder="Priority 1"
                                     aria-label="Priority 1">
@@ -182,6 +207,7 @@
 
 
                             <button type="submit" class="primary">Save review</button>
+                            <p id="form-status" class="status" role="status"></p>
                         </div>
                     </fieldset>
 
@@ -264,10 +290,14 @@
                     </div>
 
                     <div class="data-footer">
+                        <a href="https://wa.me/255618811359" target="_blank" rel="noopener" class="whatsapp-btn">
+                            <svg class="icon">
+                                <use href="#i-whatsapp" />
+                            </svg>
+                            <span>Chat with us on WhatsApp</span>
+                        </a>
                         <p class="hint"><a href="privacy.html">Privacy Policy</a> and <a href="terms.html">Terms</a></p>
-                        <button id="sign-out" class="plan-btn" type="button">Sign out</button>
                     </div>
-                </div>
             </section>
         </main>
     </div>
