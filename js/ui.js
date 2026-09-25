@@ -227,10 +227,7 @@ function renderPriorityCard(entries) {
     ? "Tomorrow's priorities"
     : "Today's priorities";
 
-  const hint = $("priority-hint");
-  hint.textContent = "Locked until tomorrow. Fill it in carefully — it can't be edited once tonight's review is saved.";
-  hint.hidden = !isPreview;
-
+ 
   if (allDone) {
     $("priority-list").replaceChildren(completionMessage());
   } else {
