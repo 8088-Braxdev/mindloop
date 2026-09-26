@@ -1069,7 +1069,7 @@ async function init() {
   // Use optional chaining (?.) to safely call addEventListener only if the element exists
   $("review-form")?.addEventListener("submit", onSubmit);
   $("lock-shield")?.addEventListener("click", () =>
-    setStatus("Review saved. Click the button to edit."),
+    setStatus("Click the button to edit."),
   );
   $("copy-summary")?.addEventListener("click", onCopySummary);
   $("delete-data")?.addEventListener("click", onDeleteData);
