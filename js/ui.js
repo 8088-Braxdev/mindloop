@@ -34,7 +34,13 @@ import {
   isDeleteConfirmed,
   getCardPlan,
 } from "./logic.js";
-import { getSession, signInWithGoogle, signOut, cachedUserId, getUserDisplay } from "./auth.js";
+import {
+  getSession,
+  signInWithGoogle,
+  signOut,
+  cachedUserId,
+  getUserDisplay,
+} from "./auth.js";
 import { deleteAccount } from "./account.js";
 import {
   getInsight,
@@ -521,7 +527,7 @@ async function onSubmit(event) {
   const button = event.target.querySelector("button[type='submit']");
 
   // Imeshasaviwa leo na hatuedit bado: click hii inamaanisha "Edit"
-if (hasToday && !editing) {
+  if (hasToday && !editing) {
     fillForm(await getEntry(todayKey()));
     editing = true;
     setStatus("Editing today's review.");
@@ -710,7 +716,121 @@ function initWeekNav() {
     renderWeek();
   });
 }
+/* ---------- Onboarding tour ---------- */
 
+const TOUR_STEPS = [
+  {
+    view: "today",
+    target: "streak-label",
+    title: "Your streak",
+    text: "Every night you complete a review, your streak grows. Miss a night and it resets — a gentle nudge to keep showing up.",
+  },
+  {
+    view: "today",
+    target: "review-form",
+    title: "Tonight's review",
+    text: "Each night, note your wins and challenges, then plan tomorrow's three priorities with a start time. Takes under two minutes.",
+  },
+  {
+    view: "today",
+    target: "priority-review",
+    title: "Tomorrow's plan",
+    text: "Once you save a review, tomorrow's priorities show up here with a Start button for each, and an honesty check-in when you mark them done.",
+  },
+  {
+    view: "week",
+    target: "week-stats",
+    title: "Your Week",
+    text: "See priorities done, on-time starts, your top blocker, and your hardest weekday — all calculated from your reviews.",
+  },
+  {
+    view: "week",
+    target: "week-insight",
+    title: "AI insights",
+    text: "Tap for an AI-written insight on your week, based only on your own reviews. You get one per period, so make it count.",
+  },
+  {
+    view: "account",
+    target: "account-card",
+    title: "Your Account",
+    text: "Manage your data here — delete it, close your account, or reach us on WhatsApp, all in one place.",
+  },
+  {
+    view: "today",
+    target: "tour-help",
+    title: "Need this again?",
+    text: "Tap this button anytime to replay the tour.",
+  },
+];
+
+let tourIndex = 0;
+
+function tourKey() {
+  const uid = cachedUserId();
+  return uid ? `mindloop:tour:${uid}` : null;
+}
+
+function hasTourSeen() {
+  const key = tourKey();
+  return !key || localStorage.getItem(key) === "1";
+}
+
+function markTourSeen() {
+  const key = tourKey();
+  if (key) localStorage.setItem(key, "1");
+}
+
+const isVisible = (el) => !!el && el.offsetParent !== null;
+
+function endTour() {
+  $("tour-tooltip").hidden = true;
+  document
+    .querySelectorAll(".tour-target")
+    .forEach((el) => el.classList.remove("tour-target"));
+  markTourSeen();
+}
+
+function showTourStep(index) {
+  if (index >= TOUR_STEPS.length) {
+    endTour();
+    return;
+  }
+  const step = TOUR_STEPS[index];
+  showView(step.view);
+
+  requestAnimationFrame(() => {
+    const target = $(step.target);
+    if (!isVisible(target)) {
+      showTourStep(index + 1);
+      return;
+    }
+    document
+      .querySelectorAll(".tour-target")
+      .forEach((el) => el.classList.remove("tour-target"));
+    target.classList.add("tour-target");
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    tourIndex = index;
+    $("tour-title").textContent = step.title;
+    $("tour-text").textContent = step.text;
+    $("tour-next").textContent =
+      index === TOUR_STEPS.length - 1 ? "Got it" : "Next";
+    $("tour-tooltip").hidden = false;
+  });
+}
+
+function startTour() {
+  showTourStep(0);
+}
+
+function initTour() {
+  $("tour-help")?.addEventListener("click", startTour);
+  $("tour-skip")?.addEventListener("click", endTour);
+  $("tour-next")?.addEventListener("click", () => {
+    if (tourIndex === TOUR_STEPS.length - 1) endTour();
+    else showTourStep(tourIndex + 1);
+  });
+}
 /* ---------- Copy summary ---------- */
 
 async function copyText(text) {
@@ -860,7 +980,8 @@ function showWelcome() {
   $("google-signin").addEventListener("click", async () => {
     try {
       await signInWithGoogle();
-      location.reload();
+      // Page now leaves for Google; on success the browser returns here
+      // with a session already set, and init() picks it up on reload.
     } catch (err) {
       console.error("MindLoop: sign-in failed", err);
       showAppError("Could not start Google sign-in. Try again.");
@@ -930,10 +1051,11 @@ async function init() {
   }
   $("welcome").hidden = true;
   $("app").hidden = false;
-    renderUserChip(session);
+  renderUserChip(session);
   initUserMenu();
 
   initTabs();
+  initTour();
   initWeekNav();
   // Locate the line around 866 in ui.js
   const shield = $("lock-shield");
@@ -954,7 +1076,6 @@ async function init() {
 
   initAccountDelete();
 
-  
   $("sign-out-btn")?.addEventListener("click", handleSignOut);
   syncSubmitLabel();
   requestAnimationFrame(() => {
@@ -965,6 +1086,7 @@ async function init() {
         fillForm(entries.find((entry) => entry.date === todayKey()));
         syncSubmitLabel();
         await refresh(entries);
+        if (!hasTourSeen()) startTour();
       } catch (err) {
         console.error("MindLoop: initial data load failed", err);
         showAppError(

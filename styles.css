@@ -845,3 +845,44 @@ input[type="time"]:focus {
   opacity: 0;
   pointer-events: none;
 }
+.tour-target {
+  position: relative;
+  z-index: 30;
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 3px var(--accent), 0 0 24px rgba(180, 83, 42, 0.35);
+  transition: box-shadow 0.3s ease;
+  scroll-margin-top: 90px;
+}
+
+.tour-tooltip {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: min(92%, 420px);
+  background: var(--card);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.tour-tooltip h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+.tour-tooltip p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.tour-actions {
+  display: flex;
+  gap: 8px;
+}
+.tour-actions .plan-btn,
+.tour-actions .primary {
+  flex: 1;
+  margin-top: 0;
+  min-height: 44px;
+}
