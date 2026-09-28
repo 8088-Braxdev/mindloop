@@ -52,6 +52,9 @@ import {
 
 let currentWeek = mondayOf(toDateKey(new Date()));
 let editing = false; // true = fomu ina review ya leo, inaeditiwa
+let reviewLocked = false; // siku mpya + priorities za leo hazijaisha
+const LOCK_MSG =
+  "Finish all 3 of today's priorities (Done or Not done) to unlock tonight's review.";
 let hasToday = false; // review ya leo imeshasaviwa
 
 function clearForm() {
@@ -59,15 +62,27 @@ function clearForm() {
 }
 // Saved tonight and not editing: hide priority inputs, show the shield.
 function syncPriorityMode() {
-  const locked = hasToday && !editing;
+  // Priorities zinaandikwa tu kabla ya kusave. Baada ya hapo hazionekani, hata ukiedit.
   document
     .querySelectorAll(
       "#review-fields .priority-row, #review-fields .priority-head",
     )
     .forEach((el) => {
-      el.style.display = locked ? "none" : "";
+      el.style.display = hasToday ? "none" : "";
     });
-  $("lock-shield").hidden = !locked;
+  $("lock-shield").hidden = !hasToday || editing;
+
+  // Card nzima inalock hadi priorities za leo ziishe
+  $("review-fields").disabled = reviewLocked;
+  $("review-form").querySelector("button[type='submit']").hidden =
+    reviewLocked;
+
+  const status = $("form-status");
+  if (reviewLocked) {
+    setStatus(LOCK_MSG);
+  } else if (status.textContent === LOCK_MSG) {
+    setStatus("");
+  }
 }
 function setStatus(message, isError = false) {
   const el = $("form-status");
@@ -231,7 +246,7 @@ function renderPriorityCard(entries) {
     !isPreview &&
     items.length > 0 &&
     items.every((i) => i.doneAt || i.skippedAt);
-
+  reviewLocked = !hasToday && !isPreview && items.length > 0 && !allDone;
   $("priority-title").textContent = isPreview
     ? "Tomorrow's priorities"
     : "Today's priorities";
@@ -524,17 +539,18 @@ function fillForm(entry) {
 
 async function onSubmit(event) {
   event.preventDefault();
+  if (reviewLocked) return;
   const button = event.target.querySelector("button[type='submit']");
 
-  // Imeshasaviwa leo na hatuedit bado: click hii inamaanisha "Edit"
   if (hasToday && !editing) {
     fillForm(await getEntry(todayKey()));
     editing = true;
-    setStatus("Editing today's review.");
+    setStatus("Editing today's review. Priorities stay locked until tomorrow.");
     syncSubmitLabel();
     syncPriorityMode();
     return;
   }
+
 
   button.disabled = true;
   try {
@@ -729,13 +745,13 @@ const TOUR_STEPS = [
     view: "today",
     target: "review-form",
     title: "Tonight's review",
-    text: "Each night, note your wins and challenges, then plan tomorrow's three priorities with a start time. Takes under two minutes.",
+    text: "Each night, note your wins and challenges, then plan tomorrow's three priorities with a start time. After you save, priorities lock until tomorrow. You can still edit your notes.",
   },
   {
     view: "today",
     target: "priority-review",
     title: "Tomorrow's plan",
-    text: "Once you save a review, tomorrow's priorities show up here with a Start button for each, and an honesty check-in when you mark them done.",
+    text: "After saving, tomorrow's plan waits here with a countdown. When the new day starts, the review resets and stays locked until you mark all 3 priorities Done or Not done. Be honest, it's only for you.",
   },
   {
     view: "week",
@@ -756,7 +772,7 @@ const TOUR_STEPS = [
     text: "Manage your data here — delete it, close your account, or reach us on WhatsApp, all in one place.",
   },
   {
-    view: "today",
+    view: "account",
     target: "tour-help",
     title: "Need this again?",
     text: "Tap this button anytime to replay the tour.",
@@ -1057,19 +1073,15 @@ async function init() {
   initTabs();
   initTour();
   initWeekNav();
-  // Locate the line around 866 in ui.js
-  const shield = $("lock-shield");
-  if (shield) {
-    shield.addEventListener("click", () => {
-      // your click logic here
-    });
-  } else {
-    console.warn("MindLoop: lock-shield element not found in DOM.");
-  }
+
   // Use optional chaining (?.) to safely call addEventListener only if the element exists
   $("review-form")?.addEventListener("submit", onSubmit);
   $("lock-shield")?.addEventListener("click", () =>
-    setStatus("Click the button to edit."),
+    setStatus(
+      editing
+        ? "Priorities are locked until tomorrow."
+        : "Click the button to edit.",
+    ),
   );
   $("copy-summary")?.addEventListener("click", onCopySummary);
   $("delete-data")?.addEventListener("click", onDeleteData);
@@ -1134,6 +1146,36 @@ if ("serviceWorker" in navigator) {
   });
 }
 let countdownTimer = null;
+let countdownEnd = 0;
+
+async function tickCountdown() {
+  const el = $("lock-countdown");
+  const diff = countdownEnd - Date.now();
+
+  if (diff <= 0) {
+    stopCountdown();
+    const wasSaved = hasToday;
+    hasToday = (await getEntry(todayKey())) !== null;
+    if (wasSaved && !hasToday) {
+      editing = false;
+      confirming.clear();
+      clearForm(); // data za jana zinafutwa, form inaanza upya
+    }
+    syncSubmitLabel();
+    await refresh(); // inalock card kwa sababu priorities za leo bado
+    return;
+  }
+  el.textContent = formatCountdown(diff);
+}
+
+function startCountdown() {
+  stopCountdown();
+  const midnight = new Date();
+  midnight.setHours(24, 0, 0, 0);
+  countdownEnd = midnight.getTime(); // inahesabiwa MARA MOJA
+  tickCountdown();
+  countdownTimer = setInterval(tickCountdown, 1000);
+}
 
 function formatCountdown(ms) {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
@@ -1143,34 +1185,7 @@ function formatCountdown(ms) {
   return `Unlocks in ${h}h ${m}m ${s}s`;
 }
 
-async function tickCountdown() {
-  const el = $("lock-countdown");
-  const now = new Date();
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0);
-  const diff = midnight - now;
 
-  if (diff <= 0) {
-    // Siku mpya imeanza wakati app iko wazi: refresh state bila reload
-    stopCountdown();
-    const wasSaved = hasToday;
-    hasToday = (await getEntry(todayKey())) !== null;
-    if (wasSaved && !hasToday) {
-      editing = false;
-      clearForm();
-    }
-    syncSubmitLabel();
-    await refresh();
-    return;
-  }
-  el.textContent = formatCountdown(diff);
-}
-
-function startCountdown() {
-  stopCountdown();
-  tickCountdown();
-  countdownTimer = setInterval(tickCountdown, 1000); // kila sekunde: "live"
-}
 
 function stopCountdown() {
   if (countdownTimer) {
