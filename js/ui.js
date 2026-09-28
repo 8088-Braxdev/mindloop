@@ -745,7 +745,7 @@ const TOUR_STEPS = [
     view: "today",
     target: "review-form",
     title: "Tonight's review",
-    text: "Each night, note your wins and challenges, then plan tomorrow's three priorities with a start time. After you save, priorities lock until tomorrow. You can still edit your notes.",
+    text: "Each night, note your wins and challenges, then plan tomorrow's three priorities with a start time. After you save, priorities lock until tomorrow. You can still edit your review.",
   },
   {
     view: "today",
