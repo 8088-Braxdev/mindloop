@@ -11,6 +11,8 @@ import {
   hasPending,
   prepareSignOut,
   getEntriesLocal,
+  clearPriorityStamp,
+  reschedulePriority,
 } from "./storage.js";
 import {
   toDateKey,
@@ -157,6 +159,7 @@ const STATUS_TEXT = {
   late: "Overdue",
   waiting: "Waiting",
   skipped: "Skipped",
+  postponed: "Postponed",
 };
 
 function planButton(iconId, label, onClick) {
@@ -173,6 +176,41 @@ function completionMessage() {
   li.textContent = "All three priorities done. Well done today. 🎉";
   return li;
 }
+
+// Spec §4: change or remove a priority's start time, keeping its history.
+function onChangeTime(sourceDate, index, item) {
+  const time = prompt(
+    `Start time for "${item.text}" (HH:MM). Leave empty for no time.`,
+    item.time || "",
+  );
+  if (time === null) return; // cancelled
+  const clean = (time || "").trim();
+  if (clean !== "" && !/^\d{1,2}:\d{2}$/.test(clean)) {
+    showAppError("Use a time like 09:30, or leave it empty.");
+    return;
+  }
+  reschedulePriority(sourceDate, index, clean)
+    .then(() => refresh())
+    .catch((err) => {
+      console.error("MindLoop: reschedule failed", err);
+      showAppError("Could not change the time. Check your connection and try again.");
+    });
+}
+
+// Spec §4: postponing is a plan move, not a failure. Undo is honest too.
+function onPostpone(sourceDate, index) {
+  onMark(sourceDate, index, "postponedAt");
+}
+
+function onUndoPostpone(sourceDate, index) {
+  clearPriorityStamp(sourceDate, index, "postponedAt")
+    .then(() => refresh())
+    .catch((err) => {
+      console.error("MindLoop: undo postpone failed", err);
+      showAppError("Could not undo the postpone. Check your connection and try again.");
+    });
+}
+
 function buildPlanItem(item, sourceDate, planDate) {
   const status = priorityStatus(item, planDate, new Date());
 
@@ -185,7 +223,8 @@ function buildPlanItem(item, sourceDate, planDate) {
 
   const meta = document.createElement("p");
   meta.className = "plan-meta";
-  meta.textContent = `${item.time || "No time"} · ${STATUS_TEXT[status]}`;
+  const duration = item.duration ? ` · ${item.duration} min` : "";
+  meta.textContent = `${item.time || "No time"}${duration} · ${STATUS_TEXT[status]}`;
 
   const note = document.createElement("p");
   note.className = "confirm-msg";
@@ -199,6 +238,14 @@ function buildPlanItem(item, sourceDate, planDate) {
       note.textContent = HONESTY.yes;
     } else if (item.skippedAt) {
       note.textContent = HONESTY.no;
+    } else if (item.postponedAt) {
+      note.textContent =
+        "Moved to another day. No pressure — you can undo this if today changes.";
+      actions.append(
+        planButton("i-clock", "Undo postpone", () =>
+          onUndoPostpone(sourceDate, item.index),
+        ),
+      );
     } else {
       if (!item.startedAt) {
         actions.append(
@@ -207,6 +254,14 @@ function buildPlanItem(item, sourceDate, planDate) {
           ),
         );
       }
+      actions.append(
+        planButton("i-clock", "Change time", () =>
+          onChangeTime(sourceDate, item.index, item),
+        ),
+        planButton("i-left", "Postpone", () =>
+          onPostpone(sourceDate, item.index),
+        ),
+      );
       if (confirming.has(item.index)) {
         note.textContent = HONESTY.ask;
         actions.append(
@@ -242,11 +297,17 @@ function renderPriorityCard(entries) {
     hasToday && !editing,
   );
   const isPreview = planDate > todayKey();
+  // A day is answered when every item has a final answer: done, not done,
+  // or postponed (a real move of the task, not a failure).
+  const allAnswered =
+    !isPreview &&
+    items.length > 0 &&
+    items.every((i) => i.doneAt || i.skippedAt || i.postponedAt);
   const allDone =
     !isPreview &&
     items.length > 0 &&
     items.every((i) => i.doneAt || i.skippedAt);
-  reviewLocked = !hasToday && !isPreview && items.length > 0 && !allDone;
+  reviewLocked = !hasToday && !isPreview && items.length > 0 && !allAnswered;
   $("priority-title").textContent = isPreview
     ? "Tomorrow's priorities"
     : "Today's priorities";
@@ -505,13 +566,18 @@ function readForm(previous) {
   const priorities = [1, 2, 3].map((n, i) => {
     const text = $(`p${n}`).value.trim();
     const time = text ? $(`t${n}`).value : ""; // saa bila maandishi inapuuzwa
+    const durationRaw = text ? $(`d${n}`).value : "";
+    const duration = durationRaw ? Number(durationRaw) : null;
     const same = old[i] && old[i].text === text;
     return {
       text,
       time,
+      duration,
       startedAt: same ? old[i].startedAt || null : null,
       doneAt: same ? old[i].doneAt || null : null,
-      skippedAt: same ? old[i].skippedAt || null : null, // <- mstari huu mpya
+      skippedAt: same ? old[i].skippedAt || null : null,
+      postponedAt: same ? old[i].postponedAt || null : null,
+      rescheduled: same ? old[i].rescheduled || [] : [],
     };
   });
 
@@ -534,6 +600,7 @@ function fillForm(entry) {
   (entry.priorities || []).forEach((p, i) => {
     $(`p${i + 1}`).value = p.text || "";
     $(`t${i + 1}`).value = p.time || "";
+    $(`d${i + 1}`).value = p.duration || "";
   });
 }
 
@@ -550,7 +617,6 @@ async function onSubmit(event) {
     syncPriorityMode();
     return;
   }
-
 
   button.disabled = true;
   try {
@@ -640,6 +706,7 @@ async function renderWeek(entries = null) {
       "Avg start delay",
       s.avgLateMinutes === null ? "No data yet" : `${s.avgLateMinutes} min`,
     ),
+    statRow("Postponed", s.postponed > 0 ? String(s.postponed) : "None"),
     statRow(
       "Top blocker",
       s.topReason
@@ -841,7 +908,8 @@ function startTour() {
 
 function initTour() {
   $("tour-help")?.addEventListener("click", startTour);
-  $("tour-skip")?.addEventListener("click", endTour);
+
+$("tour-skip")?.addEventListener("click", endTour);
   $("tour-next")?.addEventListener("click", () => {
     if (tourIndex === TOUR_STEPS.length - 1) endTour();
     else showTourStep(tourIndex + 1);
@@ -1184,7 +1252,6 @@ function formatCountdown(ms) {
   const s = totalSec % 60;
   return `Unlocks in ${h}h ${m}m ${s}s`;
 }
-
 
 
 function stopCountdown() {
