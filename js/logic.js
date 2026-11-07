@@ -82,6 +82,21 @@ export function weekRangeLabel(weekStart) {
   return `${fmt(weekStart)} to ${fmt(addDays(weekStart, 6))}`;
 }
 
+/* ---------- Metric formulas (documented, spec §4/§9/§18) ----------
+  Events are only ever recorded when the user taps an answer:
+    startedAt   = user tapped Start
+    doneAt      = user confirmed Done (honestly)
+    skippedAt   = user said Not done (the "cancelled/skipped" status)
+    postponedAt = user moved the task to another day (with optional reason)
+
+  Denominator rules:
+    due        = planned items whose time/day has arrived, minus postponed ones
+    cancelled  (skippedAt) STAYS in the denominator: an honest "no" is an answer
+    postponed  (postponedAt) LEAVES the denominator: the task moved, it did not
+                fail. It is never counted as missed or late.
+  A sent reminder, an app open, or a reschedule is NOT an outcome.
+------------------------------------------------------------------------- */
+
 /* ---------- Plans and priority status ---------- */
 
 // Priorities written on the night of (dateKey - 1) are the plan for dateKey.
@@ -148,6 +163,7 @@ export function dayStats(entries, dateKey, now) {
   const isFuture = dateKey > toDateKey(now);
 
   let due = 0, started = 0, done = 0, onTime = 0, lateMinutesTotal = 0, postponed = 0;
+  let cancelled = 0;
   for (const item of items) {
     const status = priorityStatus(item, dateKey, now);
     if (status === "waiting") continue;
@@ -158,6 +174,7 @@ export function dayStats(entries, dateKey, now) {
       continue;
     }
     due += 1;
+    if (item.skippedAt) cancelled += 1;
     if (item.startedAt) {
       started += 1;
       const diff = startDiffMinutes(item, dateKey);
@@ -175,7 +192,7 @@ export function dayStats(entries, dateKey, now) {
     filled: entry !== null,
     reason: entry ? entry.reason : "",
     planned: items.length,
-    due, started, done, onTime, postponed, lateMinutesTotal,
+    due, started, done, onTime, postponed, cancelled, lateMinutesTotal,
   };
 }
 // True when the item's time has come and the user has not answered yet.
@@ -193,6 +210,7 @@ export function weekStats(entries, weekStart, now) {
   const done = sum("done");
   const onTime = sum("onTime");
   const postponed = sum("postponed");
+  const cancelled = sum("cancelled");
 
   const pct = (part, whole) => (whole === 0 ? null : Math.round((part / whole) * 100));
 
@@ -210,7 +228,7 @@ export function weekStats(entries, weekStart, now) {
     range: weekRangeLabel(weekStart),
     days,
     daysFilled: days.filter((d) => d.filled).length,
-    due, started, done, onTime, postponed,
+    due, started, done, onTime, postponed, cancelled,
     onTimeRate: pct(onTime, due),
     doneRate: pct(done, due),
     avgLateMinutes: started === 0 ? null : Math.round(sum("lateMinutesTotal") / started),
@@ -336,6 +354,7 @@ export function weekFacts(entries, weekStart, now) {
     on_time_rate_percent: s.onTimeRate,
     average_start_delay_minutes: s.avgLateMinutes,
     priorities_postponed: s.postponed,
+    priorities_cancelled: s.cancelled,
     postponed_means: "moved to another day by the person; not counted as due or failed",
     top_blocker: s.topReason ? { label: s.topReason.label, days: s.topReason.count } : null,
     blockers: s.reasons.map((r) => ({ label: r.label, days: r.count })),
@@ -370,6 +389,7 @@ export function dayFacts(entries, dateKey, now) {
     priorities_started: d.started,
     priorities_done: d.done,
     priorities_postponed: d.postponed,
+    priorities_cancelled: d.cancelled,
     started_on_time: d.onTime,
         done_rate_percent: d.due === 0 ? null : Math.round((d.done / d.due) * 100),
     on_time_rate_percent: d.due === 0 ? null : Math.round((d.onTime / d.due) * 100),
@@ -377,6 +397,7 @@ export function dayFacts(entries, dateKey, now) {
       task: clipText(item.text, 80),
       planned_time: item.time || null,
       estimated_minutes: item.duration || null,
+      times_rescheduled: (item.rescheduled || []).length,
       status: priorityStatus(item, dateKey, now),
       start_delay_minutes: startDiffMinutes(item, dateKey),
     })),
@@ -392,6 +413,15 @@ export function validateReview(review) {
   for (let i = 0; i < review.priorities.length; i++) {
     const p = review.priorities[i];
     if (!p.text) return missing(`priority ${i + 1}`, `p${i + 1}`);
+    if (
+      p.duration != null &&
+      (!Number.isFinite(p.duration) || p.duration < 1 || p.duration > 600)
+    ) {
+      return {
+        message: `Priority ${i + 1}: duration must be between 1 and 600 minutes.`,
+        focus: `d${i + 1}`,
+      };
+    }
   }
   return null;
 }
