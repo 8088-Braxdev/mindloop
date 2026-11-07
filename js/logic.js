@@ -118,13 +118,15 @@ export function startDiffMinutes(item, planDate) {
   return Math.round((new Date(item.startedAt) - planned) / 60000);
 }
 
-// "done" | "started" | "missed" | "late" | "waiting"
-// missed = day is over and never started
-// late   = planned time passed today, not started yet
-// waiting = planned time still ahead
+// "done" | "started" | "missed" | "late" | "waiting" | "skipped" | "postponed"
+// missed     = day is over and never started
+// late       = planned time passed today, not started yet
+// waiting    = planned time still ahead, or no time planned
+// postponed  = the person moved it to another day (not a failure)
 export function priorityStatus(item, planDate, now) {
   if (item.doneAt) return "done";
   if (item.skippedAt) return "skipped";
+  if (item.postponedAt) return "postponed";
   if (item.startedAt) return "started";
   if (planDate < toDateKey(now)) return "missed";
   const planned = plannedStart(planDate, item.time);
@@ -145,10 +147,16 @@ export function dayStats(entries, dateKey, now) {
   const entry = entries.find((e) => e.date === dateKey) || null;
   const isFuture = dateKey > toDateKey(now);
 
-  let due = 0, started = 0, done = 0, onTime = 0, lateMinutesTotal = 0;
+  let due = 0, started = 0, done = 0, onTime = 0, lateMinutesTotal = 0, postponed = 0;
   for (const item of items) {
     const status = priorityStatus(item, dateKey, now);
     if (status === "waiting") continue;
+    // Postponed = moved to another day. It leaves today's counts entirely:
+    // not due, not started, not done — and never counted as a failure here.
+    if (item.postponedAt) {
+      postponed += 1;
+      continue;
+    }
     due += 1;
     if (item.startedAt) {
       started += 1;
@@ -167,12 +175,12 @@ export function dayStats(entries, dateKey, now) {
     filled: entry !== null,
     reason: entry ? entry.reason : "",
     planned: items.length,
-    due, started, done, onTime, lateMinutesTotal,
+    due, started, done, onTime, postponed, lateMinutesTotal,
   };
 }
 // True when the item's time has come and the user has not answered yet.
 export function needsAnswer(item, planDate, now = new Date()) {
-  return !item.doneAt && !item.skippedAt &&
+  return !item.doneAt && !item.skippedAt && !item.postponedAt &&
     priorityStatus(item, planDate, now) !== "waiting";
 }
 export function weekStats(entries, weekStart, now) {
@@ -184,6 +192,7 @@ export function weekStats(entries, weekStart, now) {
   const started = sum("started");
   const done = sum("done");
   const onTime = sum("onTime");
+  const postponed = sum("postponed");
 
   const pct = (part, whole) => (whole === 0 ? null : Math.round((part / whole) * 100));
 
@@ -201,7 +210,7 @@ export function weekStats(entries, weekStart, now) {
     range: weekRangeLabel(weekStart),
     days,
     daysFilled: days.filter((d) => d.filled).length,
-    due, started, done, onTime,
+    due, started, done, onTime, postponed,
     onTimeRate: pct(onTime, due),
     doneRate: pct(done, due),
     avgLateMinutes: started === 0 ? null : Math.round(sum("lateMinutesTotal") / started),
@@ -274,6 +283,9 @@ export function buildWeekSummary(entries, weekStart, now) {
       lines.push(`Average start delay: ${s.avgLateMinutes} min`);
     }
   }
+  if (s.postponed > 0) {
+    lines.push(`Postponed: ${s.postponed}`);
+  }
   if (s.topReason) {
     lines.push(`Top blocker: ${s.topReason.label} (${s.topReason.count}x)`);
   }
@@ -320,10 +332,11 @@ export function weekFacts(entries, weekStart, now) {
     priorities_due: s.due,
     priorities_started: s.started,
     priorities_done: s.done,
-    done_rate_percent: s.doneRate,
     started_on_time: s.onTime,
     on_time_rate_percent: s.onTimeRate,
     average_start_delay_minutes: s.avgLateMinutes,
+    priorities_postponed: s.postponed,
+    postponed_means: "moved to another day by the person; not counted as due or failed",
     top_blocker: s.topReason ? { label: s.topReason.label, days: s.topReason.count } : null,
     blockers: s.reasons.map((r) => ({ label: r.label, days: r.count })),
     hardest_weekday_all_time: worst ? { day: worst.day, blocker_days: worst.count } : null,
@@ -337,6 +350,7 @@ export function weekFacts(entries, weekStart, now) {
         priorities_due: d.due,
         priorities_done: d.done,
         started_on_time: d.onTime,
+        postponed: d.postponed,
         blocker: d.reason ? REASON_LABELS[d.reason] : null,
       })),
   };
@@ -355,18 +369,21 @@ export function dayFacts(entries, dateKey, now) {
     priorities_due: d.due,
     priorities_started: d.started,
     priorities_done: d.done,
+    priorities_postponed: d.postponed,
     started_on_time: d.onTime,
         done_rate_percent: d.due === 0 ? null : Math.round((d.done / d.due) * 100),
     on_time_rate_percent: d.due === 0 ? null : Math.round((d.onTime / d.due) * 100),
     priorities: items.map((item) => ({
       task: clipText(item.text, 80),
       planned_time: item.time || null,
+      estimated_minutes: item.duration || null,
       status: priorityStatus(item, dateKey, now),
       start_delay_minutes: startDiffMinutes(item, dateKey),
     })),
   };
 }
 // Every field of the night review must be filled before saving.
+// A start time is optional (spec §4): only the task text is required.
 export function validateReview(review) {
   const missing = (label, focus) => ({ message: `Fill in ${label} first.`, focus });
   if (!review.wins) return missing("what went well", "wins");
@@ -375,9 +392,6 @@ export function validateReview(review) {
   for (let i = 0; i < review.priorities.length; i++) {
     const p = review.priorities[i];
     if (!p.text) return missing(`priority ${i + 1}`, `p${i + 1}`);
-    if (!p.time) {
-      return { message: `Add a start time for priority ${i + 1}.`, focus: `t${i + 1}` };
-    }
   }
   return null;
 }
