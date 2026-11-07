@@ -225,7 +225,6 @@
                                 <input id="t3" type="time" aria-label="Start time for priority 3">
                             </div>
 
-
                             <button type="submit" class="primary">Save review</button>
                             <p id="form-status" class="status" role="status"></p>
                         </div>
@@ -315,6 +314,15 @@
                     <div class="data-actions">
                         <button id="tour-help" class="plan-btn" type="button">Show app tour</button>
                     </div>
+                    <h3>Insight language</h3>
+                    <p class="hint">The language new AI insights are written in. Your reviews and past insights are
+                        never translated or changed.</p>
+                    <select id="insight-language" aria-label="Preferred insight language">
+                        <option value="auto">Automatic — match my reviews</option>
+                        <option value="en">English</option>
+                        <option value="sw">Kiswahili</option>
+                    </select>
+                    <p id="language-status" class="status" role="status"></p>
                     <div class="data-footer">
                         <a href="https://wa.me/255618811359" target="_blank" rel="noopener" class="whatsapp-btn">
                             <svg class="icon">
@@ -339,6 +347,7 @@
     </div>
     <script type="module" src="js/ui.js"></script>
     <script type="module" src="js/swipe.js"></script>
+    <script type="module" src="js/settings.js"></script>
 </body>
 
 </html>
