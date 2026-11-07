@@ -1,19 +1,24 @@
 // js/reminders.js
 // In-app reminders for today's priorities (spec §5, honest scope).
 //
-// What this IS: a reminder shown inside the app when the app is open, at the
-// moment a priority's start time arrives. Snooze, change time, done, postpone.
+// What this IS: a reminder shown inside the app while the app is open, at the
+// moment a priority's start time arrives. Start / snooze / change time /
+// done / postpone — and none of them assume the person failed.
 //
 // What this is NOT: a guaranteed closed-app push notification. Web push while
-// the app is closed needs a server-side push subscription and scheduler, which
-// is a separate step. If the app was not open at the start time, the card is
-// shown when the person returns and the item still needs an answer.
+// the app is closed needs a server-side push subscription and scheduler,
+// which is a later step. If the app was not open at the start time, the card
+// simply appears when the person returns and the item still needs an answer.
 //
-// Duplicate rules: one reminder per priority until it is answered or snoozed.
-// A snoozed item is quiet for its snooze window. A dismissed item can be
-// re-offered once by the follow-up setting, then stays quiet.
+// This module is self-contained: it builds its own card inside the Today
+// view and its own setting inside the Account card, so index.html and ui.js
+// do not change.
 
-import { getEntriesLocal } from "./storage.js";
+import {
+  getEntriesLocal,
+  markPriority,
+  reschedulePriority,
+} from "./storage.js";
 import { getCardPlan, priorityStatus, toDateKey } from "./logic.js";
 import { cachedUserId } from "./auth.js";
 
@@ -23,6 +28,8 @@ const FOLLOWUP_KEY = "mindloop:followup";
 const VALID_FOLLOWUP = new Set([0, 5, 15, 30]);
 
 const idOf = (sourceDate, index) => `${sourceDate}#${index}`;
+
+/* ---------- Small per-device store ---------- */
 
 function readStore() {
   try {
@@ -38,7 +45,7 @@ function writeStore(store) {
   try {
     localStorage.setItem(REMINDER_KEY, JSON.stringify(store));
   } catch {
-    // Reminders are per-device convenience; a failed write is not fatal.
+    // Per-device convenience; a failed write is not fatal.
   }
 }
 
@@ -53,25 +60,31 @@ function readFollowup() {
   }
 }
 
-export function setFollowup(value) {
+function setFollowup(value) {
   const uid = cachedUserId();
   if (!uid || !VALID_FOLLOWUP.has(value)) return;
   try {
     localStorage.setItem(`${FOLLOWUP_KEY}:${uid}`, String(value));
   } catch {
-    // Convenience setting; not fatal if storage is blocked.
+    // Same as above: convenience setting, not fatal.
   }
 }
 
-// Drop the record for a priority once it has an answer (done/skipped/postponed
-// or was started). Keeps the store small and prevents stale reminders.
+// Drop records for priorities that now have an answer. Keeps the store small
+// and prevents stale reminders for finished work.
 function pruneAnswered(store, items, sourceDate) {
   let changed = false;
   for (const id of Object.keys(store)) {
     if (!id.startsWith(`${sourceDate}#`)) continue;
     const index = Number(id.split("#")[1]);
     const item = items.find((i) => i.index === index);
-    if (!item || item.doneAt || item.skippedAt || item.postponedAt || item.startedAt) {
+    if (
+      !item ||
+      item.doneAt ||
+      item.skippedAt ||
+      item.postponedAt ||
+      item.startedAt
+    ) {
       delete store[id];
       changed = true;
     }
@@ -87,12 +100,94 @@ function needsReminder(item, planDate, now) {
   return priorityStatus(item, planDate, now) === "late";
 }
 
+/* ---------- DOM the module owns ---------- */
+
+function buildCard() {
+  const card = document.createElement("div");
+  card.id = "reminder-card";
+  card.className = "card";
+  card.hidden = true;
+
+  const title = document.createElement("h2");
+  title.className = "reminder-title";
+
+  const when = document.createElement("p");
+  when.className = "reminder-when";
+
+  const note = document.createElement("p");
+  note.className = "reminder-note";
+
+  const actions = document.createElement("div");
+  actions.className = "reminder-actions";
+
+  const dismiss = document.createElement("button");
+  dismiss.type = "button";
+  dismiss.className = "plan-btn reminder-dismiss";
+
+  card.append(title, when, note, actions, dismiss);
+  return card;
+}
+
+function buildSettings() {
+  const wrap = document.createElement("div");
+  const head = document.createElement("h3");
+  head.textContent = "Reminders";
+
+  const hint = document.createElement("p");
+  hint.className = "hint";
+  hint.textContent =
+    "When a start time arrives and the app is open, a reminder card appears. Reminders never assume you failed, and there are no endless alerts.";
+
+  const label = document.createElement("label");
+  label.htmlFor = "followup-select";
+  label.textContent = "Follow-up after dismissing a reminder";
+
+  const select = document.createElement("select");
+  select.id = "followup-select";
+  select.setAttribute("aria-label", "Follow-up reminder timing");
+  for (const [value, text] of [
+    [0, "No follow-up"],
+    [5, "After 5 minutes"],
+    [15, "After 15 minutes"],
+    [30, "After 30 minutes"],
+  ]) {
+    const option = document.createElement("option");
+    option.value = String(value);
+    option.textContent = text;
+    select.append(option);
+  }
+  select.value = String(readFollowup());
+  select.addEventListener("change", () => setFollowup(Number(select.value)));
+
+  const scope = document.createElement("p");
+  scope.className = "hint";
+  scope.textContent =
+    "In-app only for now. Closed-app notifications need a push subscription and arrive in a later update — MindLoop will never claim guaranteed delivery.";
+
+  wrap.append(head, hint, label, select, scope);
+  return wrap;
+}
+
+let card = null;
+
+function ensureCard() {
+  const today = document.getElementById("view-today");
+  if (!today) return null;
+  if (!card || !card.isConnected) {
+    card = today.querySelector("#reminder-card");
+    if (!card) {
+      card = buildCard();
+      today.prepend(card);
+    }
+  }
+  return card;
+}
+
 /* ---------- Rendering ---------- */
 
 let shownId = null;
 
 function hideCard() {
-  const card = document.getElementById("reminder-card");
   if (card) card.hidden = true;
   shownId = null;
 }
@@ -113,15 +208,74 @@ function reminderText(item, now) {
       ? `You planned "${item.text}" for ${item.time} (${lateBy} min ago).`
       : `You planned "${item.text}" for ${item.time}.`;
   return {
-    title: "Time to start 📚",
+    title: "Muda wako wa kuanza umefika",
     when,
-    note: "You don't have to finish everything now — starting with 5 focused minutes counts.",
+    note: "Huhitaji kumaliza kila kitu sasa — dakika 5 tu za kuanza zinatosheleza.",
   };
 }
 
+function act(promise) {
+  promise.catch((err) => {
+    console.error("MindLoop: reminder action failed", err);
+  });
+}
+
+function wireActions(actions, item, sourceDate, id) {
+  const btn = (label, onClick) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "plan-btn";
+    b.textContent = label;
+    b.addEventListener("click", onClick);
+    return b;
+  };
+
+  actions.replaceChildren(
+    btn("Nimeanza — Start", () => {
+      act(markPriority(sourceDate, item.index, "startedAt"));
+      hideCard();
+    }),
+    btn("Nikumbushe baadaye (15 min)", () => {
+      const s = readStore();
+      s[id] = {
+        ...s[id],
+        sourceDate,
+        snoozedUntil: Date.now() + 15 * 60000,
+      };
+      writeStore(s);
+      hideCard();
+    }),
+    btn("Badilisha muda", () => {
+      const time = prompt(
+        `New start time for "${item.text}" (HH:MM). Leave empty for no time.`,
+        item.time || "",
+      );
+      if (time === null) return;
+      const clean = (time || "").trim();
+      if (clean !== "" && !/^\d{1,2}:\d{2}$/.test(clean)) {
+        if (card) {
+          card.querySelector(".reminder-note").textContent =
+            "Use a time like 09:30, or leave it empty.";
+        }
+        return;
+      }
+      act(reschedulePriority(sourceDate, item.index, clean));
+      hideCard();
+    }),
+    btn("Nimekamilisha", () => {
+      act(markPriority(sourceDate, item.index, "doneAt"));
+      hideCard();
+    }),
+    btn("Nimekwama — Postpone", () => {
+      act(markPriority(sourceDate, item.index, "postponedAt"));
+      hideCard();
+    }),
+  );
+}
+
 export function renderReminders() {
-  const card = document.getElementById("reminder-card");
-  if (!card) return;
+  const c = ensureCard();
+  if (!c) return;
 
   const entries = getEntriesLocal();
   const { sourceDate, planDate, items } = getCardPlan(
@@ -176,82 +330,50 @@ export function renderReminders() {
   }
   if (shownId === target.id) return; // already showing this one
 
-  const { item, id } = target;
+  const { item, id, first } = target;
   store[id] = { ...(store[id] || {}), sourceDate };
   writeStore(store);
 
   const text = reminderText(item, now);
-  card.querySelector(".reminder-title").textContent = text.title;
-  card.querySelector(".reminder-when").textContent = text.when;
-  card.querySelector(".reminder-note").textContent = text.note;
+  c.querySelector(".reminder-title").textContent = text.title;
+  c.querySelector(".reminder-when").textContent = text.when;
+  c.querySelector(".reminder-note").textContent = text.note;
 
-  const actions = card.querySelector(".reminder-actions");
-  actions.replaceChildren();
+  wireActions(c.querySelector(".reminder-actions"), item, sourceDate, id);
 
-  const btn = (label, onClick) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "plan-btn";
-    b.textContent = label;
-    b.addEventListener("click", onClick);
-    return b;
-  };
-
-  const emit = (action, extra = {}) =>
-    card.dispatchEvent(
-      new CustomEvent("reminder-action", {
-        detail: { action, item, sourceDate, ...extra },
-      }),
-    );
-
-  // The card lives in index.html; ui.js listens and does the data work.
-  actions.append(
-    btn("Nimeanza — Start", () => emit("start")),
-    btn("Nikumbushe baadaye (15 min)", () => emit("snooze", { minutes: 15 })),
-    btn("Badilisha muda", () => emit("change-time")),
-    btn("Nimekamilisha", () => emit("done")),
-    btn("Nimekwama", () => emit("postpone")),
-  );
-
-  const dismiss = card.querySelector(".reminder-dismiss");
+  const dismiss = c.querySelector(".reminder-dismiss");
   dismiss.textContent = "Not now";
   dismiss.onclick = () => {
     const s = readStore();
     s[id] = {
       ...s[id],
       dismissedAt: Date.now(),
-      followedUp: target.first ? false : true,
+      followedUp: first ? false : true,
     };
     writeStore(s);
     hideCard();
   };
 
   shownId = id;
-  card.hidden = false;
-  card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  c.hidden = false;
+  c.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-export function markReminderSnoozed(sourceDate, index, minutes) {
-  const s = readStore();
-  s[idOf(sourceDate, index)] = {
-    ...s[idOf(sourceDate, index)],
-    sourceDate,
-    snoozedUntil: Date.now() + minutes * 60000,
-  };
-  writeStore(s);
-  hideCard();
-}
-
-export function markReminderActioned(sourceDate, index) {
-  const s = readStore();
-  delete s[idOf(sourceDate, index)];
-  writeStore(s);
-  hideCard();
-}
+/* ---------- Init (self-wiring; runs as a module at end of body) ---------- */
 
 let timer = null;
 
 export function initReminders() {
+  // Settings live in the Account card, above the WhatsApp footer.
+  const accountCard = document.getElementById("account-card");
+  if (accountCard) {
+    const footer = accountCard.querySelector(".data-footer");
+    const settings = buildSettings();
+    footer
+      ? accountCard.insertBefore(settings, footer)
+      : accountCard.append(settings);
+  }
+
   renderReminders();
   if (timer) clearInterval(timer);
   timer = setInterval(renderReminders, TICK_MS);
@@ -259,3 +381,5 @@ export function initReminders() {
     if (!document.hidden) renderReminders();
   });
 }
+
+initReminders();
