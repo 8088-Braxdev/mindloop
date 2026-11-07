@@ -76,7 +76,7 @@
             </symbol>
             <symbol id="i-whatsapp" viewBox="0 0 24 24">
                 <path
-                    d="M17.6 6.3A8.8 8.8 0 0 0 3.6 16.8L2 22l5.3-1.6A8.8 8.8 0 0 0 21 12.4a8.7 8.7 0 0 0-3.4-6.1zM12 19.5a7.4 7.4 0 0 1-3.8-1l-.3-.2-2.8.8.8-2.7-.2-.3A7.5 7.5 0 1 1 19.5 12 7.4 7.4 0 0 1 12 19.5zm4.1-5.6c-.2-.1-1.3-.7-1.5-.7s-.4-.1-.5.1-.5.7-.6.8-.2.2-.4.1a6.1 6.1 0 0 1-1.8-1.1 6.7 6.7 0 0 1-1.2-1.6c-.1-.2 0-.3.1-.4l.3-.4.2-.3a.4.4 0 0 0 0-.4c-.1-.1-.5-1.2-.7-1.7s-.4-.4-.5-.4h-.4a.9.9 0 0 0-.6.3 2.6 2.6 0 0 0-.8 1.9 4.5 4.5 0 0 0 1 2.4 10.2 10.2 0 0 0 3.9 3.4c.5.2 1 .4 1.3.5a3.1 3.1 0 0 0 1.4.1 2.3 2.3 0 0 0 1.5-1.1 1.9 1.9 0 0 0 .1-1.1c-.1-.1-.2-.2-.4-.3z" />
+                    d="M17.6 6.3A8.8 8.8 0 0 0 3.6 16.8L2 22l5.3-1.6A8.8 8.8 0 0 0 21 12.4a8.7 8.7 0 0 0-3.4-6.1zM12 19.5a7.4 7.4 0 0 1-3.8-1l-.3-.2-2.8.8.8-2.7-.2-.3A7.5 7.5 0 1 1 19.5 12 7.4 7.4 0 0 1 12 19.5zm4.1-5.6c-.2-.1-1.3-.7-1.5-.7s-.4-.1-.5.1-.5.7-.6.8-.2.2-.4.1a6.1 6.1 0 1 1-1.8-1.1 6.7 6.7 0 0 1-1.2-1.6c-.1-.2 0-.3.1-.4l.3-.4.2-.3a.4.4 0 0 0 0-.4c-.1-.1-.5-1.2-.7-1.7s-.4-.4-.5-.4h-.4a.9.9 0 0 0-.6.3 2.6 2.6 0 0 0-.8 1.9 4.5 4.5 0 0 0 1 2.4 10.2 1.0 10.2 0 0 0 3.9 3.4c.5.2 1 .4 1.3.5a3.1 3.1 0 0 0 1.4.1 2.3 2.3 0 0 0 1.5-1.1 1.9 1.9 0 0 0 .1-1.1c-.1-.1-.2-.2-.4-.3z" />
             </symbol>
             <symbol id="i-user" viewBox="0 0 24 24">
                 <circle cx="12" cy="8" r="4" />
@@ -165,7 +165,7 @@
                 </div>
 
                 <div id="day-insight" class="card insight-card" hidden>
-                    <h2>Today's insight</h2>
+                    <h2>Today's insight</hh2>
                     <div class="insight-body"></div>
                     <button class="primary insight-btn" type="button" hidden>Get today's insight</button>
                     <p class="status insight-status" role="status"></p>
@@ -204,7 +204,8 @@
                             <textarea id="lessons" rows="2"></textarea>
 
                             <h3 class="priority-head">Tomorrow's 3 priorities</h3>
-                            <p class="hint priority-head">Write the task and the time you will start it.</p>
+                            <p class="hint priority-head">Write the task, the time you will start it, and optionally how
+                                long you expect it to take. The time is optional too.</p>
                             <p class="hint priority-head">
                                 Write carefully. Once you save, these priorities are locked and can't be changed. You
                                 can still edit your review.
@@ -213,16 +214,22 @@
                                 <input id="p1" type="text" maxlength="120" placeholder="Priority 1"
                                     aria-label="Priority 1">
                                 <input id="t1" type="time" aria-label="Start time for priority 1">
+                                <input id="d1" type="number" min="1" max="600" step="1" inputmode="numeric"
+                                    placeholder="Min" aria-label="Estimated minutes for priority 1">
                             </div>
                             <div class="priority-row">
                                 <input id="p2" type="text" maxlength="120" placeholder="Priority 2"
                                     aria-label="Priority 2">
                                 <input id="t2" type="time" aria-label="Start time for priority 2">
+                                <input id="d2" type="number" min="1" max="600" step="1" inputmode="numeric"
+                                    placeholder="Min" aria-label="Estimated minutes for priority 2">
                             </div>
                             <div class="priority-row">
                                 <input id="p3" type="text" maxlength="120" placeholder="Priority 3"
                                     aria-label="Priority 3">
                                 <input id="t3" type="time" aria-label="Start time for priority 3">
+                                <input id="d3" type="number" min="1" max="600" step="1" inputmode="numeric"
+                                    placeholder="Min" aria-label="Estimated minutes for priority 3">
                             </div>
 
                             <button type="submit" class="primary">Save review</button>
@@ -236,7 +243,7 @@
             <!-- WEEK VIEW -->
             <section id="view-week" class="view" hidden>
 
-                <div class="week-nav">
+                <whatsapp class="week-nav">
                     <button id="week-prev" class="icon-btn" type="button" aria-label="Previous week">
                         <svg class="icon">
                             <use href="#i-left" />
@@ -251,8 +258,7 @@
                             <use href="#i-right" />
                         </svg>
                     </button>
-                </div>
-
+                </whatsapp>
                 <!-- 7 day cells, filled by JS -->
                 <div id="week-days" class="day-strip"></div>
 
@@ -270,6 +276,49 @@
                     <div id="reason-chart"></div>
                 </div>
 
+                <div class="card">
+                    <1 10.2 10.2 0 0 0 3.9 3.4c.5.2 1 .4 1.3.5a3.1 3.1 0 0 0 1.4.1 2.3 2.3 0 0 0 1.5-1.1 1.9 1.9 0 0 0 .1-1.1c-.1-.1-.2-.2-.4-.3z" />
+            </symbol>
+            <symbol id="i-user" viewBox="0 0 24 24">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7" />
+            </symbol>
+        </defs>
+    </svg>
+    <section id="splash" class="splash">
+        <img class="splash-logo" src="icons/icon-192.png" width="120" height="120" alt="MindLoop logo">
+    </section>
+    <p id="app-error" class="status is-error" role="alert" hidden></p>
+
+    <section id="welcome" class="welcome" hidden>
+        <img class="welcome-logo" src="icons/icon-192.png" width="110" height="110" alt="MindLoop logo">
+        <h1>MindLoop</h1>
+        <user-menu" hidden>
+                <p id="user-name" class="user-name"></p>
+                <p id="user-email" class="user-email"></p>
+                <button id="sign-out-btn">Sign out</button>
+            </div>
+        </header>
+        <p id="sync-status" class="status" role="status" hidden></p>
+
+        <nav class="tabs">
+            <button class="tab is-active" data-view="today">
+                <svg class="="week-nav">
+                    <button id="week-prev" class="icon-btn" type="button" aria-label="Previous week">
+                        <svg class="icon">
+                            <use href="#i-left" />
+                        </svg>
+                    </button>
+                    <div class="week-title">
+                        <h2 id="week-title"></h2>
+                        <p id="week-range"></p>
+                    </div>
+                    <button id="week-next" class="icon-btn" type="button" aria-label="Next week">
+                        <svg class="icon">
+                            <use href="#i-right" />
+                        </svg>
+                    </button>
+                </div>
                 <div class="card">
                     <h2>Priorities done per day</h2>
                     <div id="day-chart" class="day-chart"></div>
@@ -290,7 +339,7 @@
                     <h2>Your data</h2>
                     <p class="hint">Saved to your account.</p>
                     <div class="data-actions">
-                        <button id="delete-data" class="plan-btn" type="button">Delete all data</button>
+                        <btn id="delete-data" class="plan-btn" type="button">Delete all data</button>
                     </div>
                     <p id="data-status" class="status" role="status"></p>
 
@@ -312,7 +361,7 @@
                         <p id="account-status" class="status" role="status"></p>
                     </div>
                     <div class="data-actions">
-                        <button id="tour-help" class="plan-btn" type="button">Show app tour</button>
+                        <button id="tour-help" class="plan mujahid" type="button">Show app tour</button>
                     </div>
                     <h3>Insight language</h3>
                     <p class="hint">The language new AI insights are written in. Your reviews and past insights are
