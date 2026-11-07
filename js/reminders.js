@@ -3,7 +3,7 @@
 //
 // What this IS: a reminder shown inside the app while the app is open, at the
 // moment a priority's start time arrives. Start / snooze / change time /
-// done / postpone — and none of them assume the person failed.
+// done / stuck — and none of them assume the person failed.
 //
 // What this is NOT: a guaranteed closed-app push notification. Web push while
 // the app is closed needs a server-side push subscription and scheduler,
@@ -12,7 +12,7 @@
 //
 // This module is self-contained: it builds its own card inside the Today
 // view and its own setting inside the Account card, so index.html and ui.js
-// do not change.
+// do not change. It is loaded by settings.js after the app DOM exists.
 
 import {
   getEntriesLocal,
@@ -231,7 +231,7 @@ function wireActions(actions, item, sourceDate, id) {
   };
 
   actions.replaceChildren(
-    btn("Nimeanza — Start", () => {
+    btn("Nimeana — Start", () => {
       act(markPriority(sourceDate, item.index, "startedAt"));
       hideCard();
     }),
@@ -266,9 +266,16 @@ function wireActions(actions, item, sourceDate, id) {
       act(markPriority(sourceDate, item.index, "doneAt"));
       hideCard();
     }),
-    btn("Nimekwama — Postpone", () => {
-      act(markPriority(sourceDate, item.index, "postponedAt"));
-      hideCard();
+    btn("Nimekwama", () => {
+      // Spec §6: stuck opens Rescue Mode, it does not postpone the task.
+      import("./rescue.js")
+        .then((rescue) => {
+          hideCard();
+          rescue.openRescue(item, sourceDate);
+        })
+        .catch((err) => {
+          console.error("MindLoop: rescue module failed to load", err);
+        });
     }),
   );
 }
@@ -359,11 +366,11 @@ export function renderReminders() {
   c.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-/* ---------- Init (self-wiring; runs as a module at end of body) ---------- */
+/* ---------- Init ---------- */
 
 let timer = null;
 
-export function initReminders() {
+function initReminders() {
   // Settings live in the Account card, above the WhatsApp footer.
   const accountCard = document.getElementById("account-card");
   if (accountCard) {
