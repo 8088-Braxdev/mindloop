@@ -11,8 +11,9 @@
 // - Only outcomes the person confirms are recorded.
 // - No shame: tired, distracted, no motivation are normal human states.
 //
-// This module is self-contained like reminders.js: it builds its own card
-// inside the Today view, so index.html and ui.js do not change.
+// Fully self-contained: it builds its own card in the Today view, finds plan
+// items by their rendered order, and refreshes the UI through ui.js's
+// existing visibilitychange handler. index.html and ui.js do not change.
 
 import { markPriority, reschedulePriority, getEntriesLocal } from "./storage.js";
 import { getCardPlan, toDateKey } from "./logic.js";
@@ -83,9 +84,11 @@ function closeRescue() {
   if (card) card.hidden = true;
 }
 
-function announce() {
-  // Other modules listen and refresh their views (plan card, reminders).
-  document.dispatchEvent(new CustomEvent("mindloop:refresh"));
+// ui.js refreshes everything on visibilitychange. A synthetic dispatch with
+// document.hidden === false runs that same refresh — the cleanest way for a
+// self-contained module to update the plan card without importing ui.js.
+function refreshUI() {
+  document.dispatchEvent(new Event("visibilitychange"));
 }
 
 /* ---------- Steps of the flow ---------- */
@@ -135,7 +138,9 @@ function askStep(item, sourceDate, blocker) {
   reject.type = "button";
   reject.addEventListener("click", () => {
     // Rejecting is allowed; the person just starts however they want.
-    markPriority(sourceDate, item.index, "startedAt").then(announce);
+    markPriority(sourceDate, item.index, "startedAt")
+      .then(refreshUI)
+      .catch((err) => console.error("MindLoop: rescue start failed", err));
     closeRescue();
   });
 
@@ -165,24 +170,27 @@ function askOutcome(item, sourceDate, step) {
     el("p", "rescue-note", `Your step: "${step}"`),
   );
 
-  const record = (field, extra) => {
-    const p = markPriority(sourceDate, item.index, field);
-    if (extra) p.then(extra);
-    p.then(announce);
+  const quiet = (promise) => {
+    promise.then(refreshUI).catch((err) => {
+      console.error("MindLoop: rescue outcome failed", err);
+    });
     closeRescue();
   };
 
   const buttons = [
-    ["I started", () => record("startedAt")],
-    ["The step helped — done", () => record("startedAt", () => record("doneAt"))],
-    ["Another step, please", () => askStep(item, sourceDate, "other")],
+    ["I started", () => quiet(markPriority(sourceDate, item.index, "startedAt"))],
     [
-      "I need a break",
-      () => {
-        // A break is not an outcome on the task: close quietly.
-        closeRescue();
-      },
+      "The step helped — done",
+      () =>
+        quiet(
+          markPriority(sourceDate, item.index, "startedAt").then(() =>
+            markPriority(sourceDate, item.index, "doneAt"),
+          ),
+        ),
     ],
+    ["Another step, please", () => askStep(item, sourceDate, "other")],
+    // A break is not an outcome on the task: close quietly, record nothing.
+    ["I need a break", () => closeRescue()],
     [
       "Reschedule it",
       () => {
@@ -193,11 +201,13 @@ function askOutcome(item, sourceDate, step) {
         if (time === null) return;
         const clean = (time || "").trim();
         if (clean !== "" && !/^\d{1,2}:\d{2}$/.test(clean)) return;
-        reschedulePriority(sourceDate, item.index, clean).then(announce);
-        closeRescue();
+        quiet(reschedulePriority(sourceDate, item.index, clean));
       },
     ],
-    ["Postpone to another day", () => record("postponedAt")],
+    [
+      "Postpone to another day",
+      () => quiet(markPriority(sourceDate, item.index, "postponedAt")),
+    ],
   ];
 
   const actions = el("div", "rescue-actions");
@@ -226,13 +236,13 @@ export function openRescue(item, sourceDate) {
   askBlocker(item, sourceDate);
 }
 
-/* ---------- "I'm stuck" button on today's plan items ---------- */
+/* ---------- "I'm stuck" buttons on today's plan items ---------- */
 
-// Finds today's unanswered items and adds a small "I'm stuck" button to the
-// rendered plan list, so Rescue Mode is reachable without the reminder card.
+// ui.js renders plan items in the same order as the items array, so the nth
+// .plan-item belongs to items[n]. Re-decorates whenever the list re-renders.
 function decoratePlan() {
   const list = document.getElementById("priority-list");
-  if (!list) return;
+  if (!list || list.hidden) return;
 
   const entries = getEntriesLocal();
   const { sourceDate, planDate, items } = getCardPlan(
@@ -242,28 +252,24 @@ function decoratePlan() {
   );
   if (planDate > toDateKey(new Date())) return;
 
-  for (const item of items) {
-    if (item.doneAt || item.skippedAt || item.postponedAt) continue;
-    const li = list.querySelector(
-      `.plan-item[data-index="${item.index}"] .plan-actions`,
-    );
-    if (!li) continue;
-    const existing = li.querySelector(".rescue-open");
-    if (existing) continue;
+  const rendered = list.querySelectorAll(":scope > .plan-item");
+  rendered.forEach((li, n) => {
+    const item = items[n];
+    if (!item) return;
+    if (item.doneAt || item.skippedAt || item.postponedAt) return;
+
+    const actions = li.querySelector(".plan-actions");
+    if (!actions || actions.querySelector(".rescue-open")) return;
 
     const btn = el("button", "plan-btn rescue-open", "I'm stuck");
     btn.type = "button";
     btn.addEventListener("click", () => openRescue(item, sourceDate));
-    li.append(btn);
-  }
+    actions.append(btn);
+  });
 }
 
-document.addEventListener("mindloop:refresh", () => {
-  // After any action, plan items re-render; re-add the stuck buttons.
-  setTimeout(decoratePlan, 0);
-});
+/* ---------- Styles + wiring ---------- */
 
-initStyle();
 function initStyle() {
   if (document.getElementById("rescue-style")) return;
   const style = document.createElement("style");
@@ -282,10 +288,13 @@ function initStyle() {
   document.head.append(style);
 }
 
-// Re-decorate the plan whenever ui.js re-renders it.
+initStyle();
+
 const planList = document.getElementById("priority-list");
 if (planList) {
   new MutationObserver(() => decoratePlan()).observe(planList, {
     childList: true,
   });
 }
+
+export { decoratePlan };
