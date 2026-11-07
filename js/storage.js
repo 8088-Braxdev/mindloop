@@ -234,13 +234,43 @@ export async function saveEntry(entry) {
   return entry;
 }
 
-// Plan card: stamp "startedAt", "doneAt" or "skippedAt" on one priority (only once).
+// Plan card: stamp "startedAt", "doneAt", "skippedAt" or "postponedAt" on one
+// priority (only once).
 export async function markPriority(dateKey, index, field) {
-  if (!["startedAt", "doneAt", "skippedAt"].includes(field)) return null;
+  if (!["startedAt", "doneAt", "skippedAt", "postponedAt"].includes(field))
+    return null;
   const entry = await getEntry(dateKey);
   const item = entry?.priorities?.[index];
   if (!item || item[field]) return null;
   item[field] = new Date().toISOString();
+  return saveEntry(entry);
+}
+
+// Postponing is the one answer a person may take back the same day.
+// A postpone is a plan change, not an outcome, so undoing it is honest too.
+export async function clearPriorityStamp(dateKey, index, field) {
+  if (!["postponedAt"].includes(field)) return null;
+  const entry = await getEntry(dateKey);
+  const item = entry?.priorities?.[index];
+  if (!item || !item[field]) return null;
+  delete item[field];
+  return saveEntry(entry);
+}
+
+// Change or remove a priority's start time (spec §4: rescheduling must
+// preserve the task and its history). Every move is recorded on the item.
+export async function reschedulePriority(dateKey, index, time) {
+  const entry = await getEntry(dateKey);
+  const item = entry?.priorities?.[index];
+  if (!item) return null;
+  const from = item.time || null;
+  const to = time ? time : null; // empty time = remove it; time is optional
+  if (from === to) return entry;
+  item.rescheduled = [
+    ...(item.rescheduled || []),
+    { from, to, at: new Date().toISOString() },
+  ];
+  item.time = to;
   return saveEntry(entry);
 }
 
