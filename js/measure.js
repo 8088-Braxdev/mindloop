@@ -25,6 +25,7 @@ import {
   MILESTONES,
   mindloopScore,
   patternCoach,
+  progressAnswers,
   mondayOf,
   shiftWeek,
   streakHistory,
@@ -345,6 +346,61 @@ function renderCoach() {
   parts.push(focus);
 
   body.replaceChildren(...parts);
+}
+
+/* ---------- Ask your progress (spec §14) ---------- */
+
+function buildAskCard() {
+  const card = el("div", "card");
+  card.id = "ask-card";
+
+  const chips = el("div", "ask-chips");
+  chips.id = "ask-chips";
+
+  const answer = el("p", "ask-answer");
+  answer.id = "ask-answer";
+  answer.setAttribute("aria-live", "polite");
+
+  card.append(
+    el("h2", null, "Ask your progress"),
+    el(
+      "p",
+      "hint",
+      "Short questions, answered from your own records. No AI call and no number that was not counted.",
+    ),
+    chips,
+    answer,
+  );
+  return card;
+}
+
+function renderAsk() {
+  const chips = document.getElementById("ask-chips");
+  const answer = document.getElementById("ask-answer");
+  if (!chips || !answer) return;
+
+  const items = progressAnswers(getEntriesLocal(), new Date());
+  answer.textContent = items[0].answer;
+
+  chips.replaceChildren(
+    ...items.map((item, index) => {
+      const btn = el(
+        "button",
+        `plan-btn ask-chip${index === 0 ? " is-active" : ""}`,
+        item.question,
+      );
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", String(index === 0));
+      btn.addEventListener("click", () => {
+        chips.querySelectorAll(".ask-chip").forEach((other) => {
+          other.classList.toggle("is-active", other === btn);
+          other.setAttribute("aria-pressed", String(other === btn));
+        });
+        answer.textContent = item.answer;
+      });
+      return btn;
+    }),
+  );
 }
 
 /* ---------- Growth timeline (spec §13) ---------- */
@@ -674,6 +730,24 @@ function initStyle() {
       border-radius: 50%;
       background: var(--accent);
     }
+    .ask-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; }
+    .ask-chip {
+      min-height: 40px;
+      padding: 0 12px;
+      font-size: 0.85rem;
+    }
+    .ask-chip.is-active {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: var(--surface-alt);
+      font-weight: 600;
+    }
+    .ask-answer {
+      margin: 12px 0 0;
+      padding: 10px 12px;
+      background: var(--surface-alt);
+      border-radius: 8px;
+    }
     .timeline-date { color: var(--muted); font-size: 0.78rem; }
     .timeline-title { font-weight: 600; }
     .timeline-note { color: var(--muted); font-size: 0.88rem; }
@@ -687,6 +761,7 @@ function renderAll() {
   renderScore();
   renderConsistency();
   renderCoach();
+  renderAsk();
   renderTimeline();
   renderReport();
 }
@@ -722,6 +797,7 @@ function init() {
     buildScoreCard(),
     buildConsistencyCard(),
     buildCoachCard(),
+    buildAskCard(),
     buildTimelineCard(),
     buildReportCard(),
   );

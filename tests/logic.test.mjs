@@ -5,9 +5,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  energyPlan,
   growthTimeline,
   mindloopScore,
   patternCoach,
+  progressAnswers,
   streakHistory,
   weeklyReport,
   windowStats,
@@ -252,4 +254,22 @@ test("the growth timeline dates real events, newest first", () => {
 test("an empty history has no timeline yet", () => {
   const { events } = growthTimeline([], "2026-11-08", NOW);
   assert.deepEqual(events, []);
+});
+
+/* ---------- Spec §8: adaptive plan, §14: answers about progress ---------- */
+
+test("the plan follows the energy the person expects", () => {
+  assert.equal(energyPlan("low").suggested, 1);
+  assert.equal(energyPlan("normal").suggested, 2);
+  assert.equal(energyPlan("high").suggested, 3);
+  assert.equal(energyPlan("anything-else").level, "normal");
+});
+
+test("progress answers come from the recorded week, not from guesses", () => {
+  const answers = progressAnswers(entries, NOW);
+
+  assert.equal(answers.length, 5);
+  const week = answers.find((a) => a.id === "week");
+  assert.match(week.answer, /4 of 7/);
+  assert.ok(answers.every((a) => a.answer.length > 0));
 });
