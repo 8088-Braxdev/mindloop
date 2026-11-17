@@ -1,12 +1,17 @@
-const MIN_DISTANCE = 56;
-const EDGE_GUARD = 24;
-const LOCK_DISTANCE = 8;
-const FLICK_SPEED = 0.35; // px per ms
+// Swiping between tabs should feel like a native app: the view follows the
+// finger, a short quick flick is enough, and the change is quick and springy.
+const LOCK_DISTANCE = 6; // px before we decide the gesture is horizontal
+const EDGE_GUARD = 22; // px kept for the phone's own back gesture
+const SWIPE_SHARE = 0.22; // share of the screen that counts as a swipe
+const FLICK_SPEED = 0.4; // px per ms
+const PROJECT_MS = 140; // how far a flick is projected forward
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 let startX = 0;
 let startY = 0;
-let startT = 0;
+let lastX = 0;
+let lastT = 0;
+let speed = 0;
 let tracking = false;
 let dragging = false;
 let busy = false;
@@ -39,6 +44,7 @@ function inHorizontalScroller(el) {
   return false;
 }
 
+// A drag that was not far enough: go back with a soft spring, not a snap.
 function springBack() {
   const el = panel;
   if (!el) return endDrag();
@@ -47,8 +53,8 @@ function springBack() {
   const from = { transform: cs.transform, opacity: cs.opacity };
   clear(el);
   const anim = el.animate([from, { transform: 'translateX(0)', opacity: 1 }], {
-    duration: 180,
-    easing: 'cubic-bezier(.2,.8,.2,1)',
+    duration: 220,
+    easing: 'cubic-bezier(.22,1.2,.36,1)',
   });
   anim.onfinish = () => {
     busy = false;
@@ -56,18 +62,20 @@ function springBack() {
   };
 }
 
-async function slideSwitch(step, next) {
+// The old view nudges away and fades, then the new one settles in. Short and
+// overlapping enough to read as one movement rather than two animations.
+async function slideSwitch(step, next, fromX) {
   const el = panel;
   const w = window.innerWidth;
   busy = true;
   navigator.vibrate?.(6);
-  const cs = getComputedStyle(el);
+
   const out = el.animate(
     [
-      { transform: cs.transform, opacity: cs.opacity },
-      { transform: `translateX(${-step * w}px)`, opacity: 0 },
+      { transform: `translateX(${fromX}px)`, opacity: 1 },
+      { transform: `translateX(${-step * w * 0.18}px)`, opacity: 0 },
     ],
-    { duration: 150, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'forwards' }
+    { duration: 110, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'forwards' },
   );
   await out.finished;
 
@@ -84,10 +92,10 @@ async function slideSwitch(step, next) {
   incoming.style.willChange = 'transform, opacity';
   const anim = incoming.animate(
     [
-      { transform: `translateX(${step * w * 0.45}px)`, opacity: 0.35 },
+      { transform: `translateX(${step * w * 0.12}px)`, opacity: 0 },
       { transform: 'translateX(0)', opacity: 1 },
     ],
-    { duration: 190, easing: 'cubic-bezier(.2,.8,.2,1)' }
+    { duration: 190, easing: 'cubic-bezier(.2,.9,.25,1)' },
   );
   anim.onfinish = () => {
     clear(incoming);
@@ -114,13 +122,14 @@ document.addEventListener(
 
     tracking = !blocked;
     dragging = false;
+    speed = 0;
     if (tracking) {
-      startX = t.clientX;
+      startX = lastX = t.clientX;
       startY = t.clientY;
-      startT = e.timeStamp;
+      lastT = e.timeStamp;
     }
   },
-  { passive: true }
+  { passive: true },
 );
 
 document.addEventListener(
@@ -147,14 +156,21 @@ document.addEventListener(
       document.body.style.overflowX = 'hidden';
     }
 
+    // Finger speed over the last movement, smoothed, for a natural flick.
+    const dt = Math.max(e.timeStamp - lastT, 1);
+    speed = speed * 0.6 + ((t.clientX - lastX) / dt) * 0.4;
+    lastX = t.clientX;
+    lastT = e.timeStamp;
+
     const idx = activeIndex();
     const atEdge = (dx > 0 && idx === 0) || (dx < 0 && idx === tabs().length - 1);
-    const offset = atEdge ? dx * 0.2 : dx;
+    const offset = atEdge ? dx * 0.22 : dx;
     const progress = Math.min(Math.abs(offset) / (window.innerWidth * 0.9), 1);
     panel.style.transform = `translateX(${offset}px)`;
-    panel.style.opacity = String(1 - progress * 0.2);
+    // Only a hint of depth: the view stays readable while it moves.
+    panel.style.opacity = String(1 - progress * 0.12);
   },
-  { passive: true }
+  { passive: true },
 );
 
 document.addEventListener(
@@ -166,11 +182,13 @@ document.addEventListener(
 
     const t = e.changedTouches[0];
     const dx = t.clientX - startX;
-    const dt = Math.max(e.timeStamp - startT, 1);
-    const step = dx < 0 ? 1 : -1;
+    const projected = dx + speed * PROJECT_MS;
+    const step = projected < 0 ? 1 : -1;
     const next = tabs()[activeIndex() + step];
-    const fast = Math.abs(dx) > 30 && Math.abs(dx) / dt > FLICK_SPEED;
-    const passed = Math.abs(dx) >= MIN_DISTANCE || fast;
+    const w = window.innerWidth;
+    const far = Math.abs(dx) >= w * SWIPE_SHARE;
+    const flick = Math.abs(dx) > 14 && Math.abs(speed) > FLICK_SPEED;
+    const passed = Math.abs(projected) >= w * SWIPE_SHARE && (far || flick);
 
     if (!next || !passed) return springBack();
 
@@ -180,9 +198,9 @@ document.addEventListener(
       window.scrollTo(0, 0);
       return endDrag();
     }
-    slideSwitch(step, next);
+    slideSwitch(step, next, dx);
   },
-  { passive: true }
+  { passive: true },
 );
 
 document.addEventListener(
@@ -191,5 +209,5 @@ document.addEventListener(
     tracking = false;
     if (dragging) springBack();
   },
-  { passive: true }
+  { passive: true },
 );
