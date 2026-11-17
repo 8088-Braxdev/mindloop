@@ -401,6 +401,7 @@ export function dayFacts(entries, dateKey, now) {
     priorities: items.map((item) => ({
       task: clipText(item.text, 80),
       planned_time: item.time || null,
+      planned_end_time: item.endTime || null,
       estimated_minutes: item.duration || null,
       times_rescheduled: (item.rescheduled || []).length,
       status: priorityStatus(item, dateKey, now),
@@ -408,8 +409,41 @@ export function dayFacts(entries, dateKey, now) {
     })),
   };
 }
+// A clock time as minutes after midnight, or null when it is not a time.
+function clockMinutes(value) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(value || "").trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+// How long a start time and a finish time block last, in minutes. Crossing
+// midnight is allowed (23:30 → 00:30 is one hour). The same time twice is not
+// a length, so it counts as no estimate.
+export function plannedMinutes(start, end) {
+  const from = clockMinutes(start);
+  const to = clockMinutes(end);
+  if (from === null || to === null) return null;
+  const minutes = (to - from + 24 * 60) % (24 * 60);
+  return minutes === 0 ? null : minutes;
+}
+
+// The finish time for a start time plus a length of minutes ("" when either
+// value is missing).
+export function addMinutesToTime(start, minutes) {
+  const from = clockMinutes(start);
+  if (from === null || !Number.isFinite(minutes) || minutes < 0) return "";
+  const total = (from + Math.round(minutes)) % (24 * 60);
+  const hh = String(Math.floor(total / 60)).padStart(2, "0");
+  const mm = String(total % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 // Every field of the night review must be filled before saving.
-// A start time is optional (spec §4): only the task text is required.
+// A start time is optional (spec §4): only the task text is required, and a
+// finish time only makes sense together with a start time.
 export function validateReview(review) {
   const missing = (label, focus) => ({ message: `Fill in ${label} first.`, focus });
   if (!review.wins) return missing("what went well", "wins");
@@ -418,13 +452,19 @@ export function validateReview(review) {
   for (let i = 0; i < review.priorities.length; i++) {
     const p = review.priorities[i];
     if (!p.text) return missing(`priority ${i + 1}`, `p${i + 1}`);
+    if (p.endTime && !p.time) {
+      return {
+        message: `Priority ${i + 1}: add a start time first, or clear the finish time.`,
+        focus: `t${i + 1}`,
+      };
+    }
     if (
       p.duration != null &&
-      (!Number.isFinite(p.duration) || p.duration < 1 || p.duration > 600)
+      (!Number.isFinite(p.duration) || p.duration < 1 || p.duration > 1440)
     ) {
       return {
-        message: `Priority ${i + 1}: duration must be between 1 and 600 minutes.`,
-        focus: `d${i + 1}`,
+        message: `Priority ${i + 1}: a time block cannot be longer than 24 hours.`,
+        focus: `t${i + 1}`,
       };
     }
   }

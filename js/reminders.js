@@ -1,9 +1,11 @@
 // js/reminders.js
-// In-app reminders for today's priorities (spec §5, honest scope).
+// Reminders for the day's priorities (spec §5, honest scope).
 //
-// What this IS: a reminder shown inside the app while the app is open, at the
-// moment a priority's start time arrives. Start / snooze / change time /
-// done / stuck — and none of them assume the person failed.
+// What this IS: when a priority's start time arrives, a reminder card appears
+// at the top of Today, and — if the person allowed notifications — a device
+// notification with the same words. One reminder per priority, no follow-ups.
+// Permission is asked once, by the app itself, when the first tour ends
+// (see js/notify.js); there is no button to hunt down for it.
 //
 // What this is NOT: a guaranteed closed-app push notification. Web push while
 // the app is closed needs a server-side push subscription and scheduler,
@@ -11,8 +13,8 @@
 // simply appears when the person returns and the item still needs an answer.
 //
 // This module is self-contained: it builds its own card inside the Today
-// view and its own setting inside the Account card, so index.html and ui.js
-// do not change. It is loaded by settings.js after the app DOM exists.
+// view and its own settings inside the Account card, so index.html and ui.js
+// do not need to change. It is loaded by settings.js after the app DOM exists.
 
 import {
   getEntriesLocal,
@@ -21,11 +23,10 @@ import {
 } from "./storage.js";
 import { getCardPlan, toDateKey } from "./logic.js";
 import { cachedUserId } from "./auth.js";
+import { notificationState, askOnFirstTap } from "./notify.js";
 
 const TICK_MS = 30000; // check every 30 seconds
 const REMINDER_KEY = "mindloop:reminders";
-const FOLLOWUP_KEY = "mindloop:followup";
-const VALID_FOLLOWUP = new Set([0, 5, 15, 30]);
 const LEAD_KEY = "mindloop:reminder-lead";
 const VALID_LEAD = new Set([0, 5, 10, 15]);
 
@@ -51,28 +52,7 @@ function writeStore(store) {
   }
 }
 
-function readFollowup() {
-  const uid = cachedUserId();
-  if (!uid) return 0;
-  try {
-    const value = Number(localStorage.getItem(`${FOLLOWUP_KEY}:${uid}`));
-    return VALID_FOLLOWUP.has(value) ? value : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function setFollowup(value) {
-  const uid = cachedUserId();
-  if (!uid || !VALID_FOLLOWUP.has(value)) return;
-  try {
-    localStorage.setItem(`${FOLLOWUP_KEY}:${uid}`, String(value));
-  } catch {
-    // Same as above: convenience setting, not fatal.
-  }
-}
-
-// How many minutes before a priority's start time the card appears.
+// How many minutes before a priority's start time the reminder appears.
 function readLead() {
   const uid = cachedUserId();
   if (!uid) return 0;
@@ -126,6 +106,66 @@ function needsReminder(item, planDate, now, leadMin = 0) {
   return now.getTime() >= start.getTime() - leadMin * 60000;
 }
 
+/* ---------- Device notifications ---------- */
+
+// The same reminder, delivered to the phone's notification tray. This is a
+// local notification: nothing is sent anywhere, and it only exists while the
+// app is running. The service worker shows it when the browser supports that
+// (phones do not allow `new Notification()` from a page).
+async function showDeviceNotification(title, body, tag) {
+  if (notificationState() !== "granted") return;
+  const options = {
+    body,
+    tag,
+    icon: "icons/icon-192.png",
+    badge: "icons/favicon-32.png",
+    data: { url: "./" },
+  };
+  try {
+    const registration = await navigator.serviceWorker?.getRegistration?.();
+    if (registration?.showNotification) {
+      await registration.showNotification(title, options);
+      return;
+    }
+    new Notification(title, options);
+  } catch (err) {
+    // A blocked or unsupported notification must never break the reminder.
+    console.warn("MindLoop: device notification failed", err);
+  }
+}
+
+// No "turn on notifications" button: the app asks once by itself, when the
+// first tour ends. This line only says where the permission stands, because a
+// blocked permission has to be changed in the browser, not in the app.
+function buildNotificationStatus() {
+  const status = document.createElement("p");
+  status.className = "hint";
+  status.id = "reminder-permission-status";
+
+  const paint = () => {
+    const state = notificationState();
+    if (state === "granted") {
+      status.textContent =
+        "Notifications are on. Each reminder also appears in your phone's notification tray while MindLoop is open.";
+    } else if (state === "denied") {
+      status.textContent =
+        "Notifications are blocked for MindLoop. You can allow them again in your browser's site settings. The reminder card still appears inside the app.";
+    } else if (state === "unsupported") {
+      status.textContent =
+        "This browser does not support notifications. The reminder card still appears inside the app.";
+    } else {
+      status.textContent =
+        "MindLoop asks for notification permission once, when the tour ends. Reminders still appear inside the app without it, and you can allow notifications any time in your browser's site settings.";
+    }
+  };
+
+  paint();
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) paint();
+  });
+  return status;
+}
+
 /* ---------- DOM the module owns ---------- */
 
 function buildCard() {
@@ -162,7 +202,7 @@ function buildSettings() {
   const hint = document.createElement("p");
   hint.className = "hint";
   hint.textContent =
-    "MindLoop uses each priority's start time. When that time is near and the app is open, a reminder card appears. Reminders never assume you failed, and there are no endless alerts."
+    "MindLoop uses each priority's start time. When that time is near and the app is open, a reminder card appears at the top of Today. If you set a finish time too, one gentle heads-up follows when that time is reached and the task still has no answer. One reminder each — no follow-ups, and none of them assume you failed.";
 
   const leadLabel = document.createElement("label");
   leadLabel.htmlFor = "reminder-lead-select";
@@ -185,33 +225,12 @@ function buildSettings() {
   lead.value = String(readLead());
   lead.addEventListener("change", () => setLead(Number(lead.value)));
 
-  const label = document.createElement("label");
-  label.htmlFor = "followup-select";
-  label.textContent = "Follow-up after dismissing a reminder";
-
-  const select = document.createElement("select");
-  select.id = "followup-select";
-  select.setAttribute("aria-label", "Follow-up reminder timing");
-  for (const [value, text] of [
-    [0, "No follow-up"],
-    [5, "After 5 minutes"],
-    [15, "After 15 minutes"],
-    [30, "After 30 minutes"],
-  ]) {
-    const option = document.createElement("option");
-    option.value = String(value);
-    option.textContent = text;
-    select.append(option);
-  }
-  select.value = String(readFollowup());
-  select.addEventListener("change", () => setFollowup(Number(select.value)));
-
   const scope = document.createElement("p");
   scope.className = "hint";
   scope.textContent =
-    "In-app only for now. Closed-app notifications need a push subscription and arrive in a later update — MindLoop will never claim guaranteed delivery.";
+    "This applies to every priority with a start time. Closed-app notifications need a push server and arrive in a later update — MindLoop will never claim guaranteed delivery.";
 
-  wrap.append(head, hint, leadLabel, lead, label, select, scope);
+  wrap.append(head, hint, leadLabel, lead, buildNotificationStatus(), scope);
   return wrap;
 }
 
@@ -231,6 +250,31 @@ function ensureCard() {
 }
 
 /* ---------- Rendering ---------- */
+
+// A finish time is a small promise the person made to themselves. When it is
+// reached and the task still has no answer, one calm heads-up — never a
+// "you failed" message, and never a second one.
+function notifyExpectedFinish(items, sourceDate, planDate, now, store) {
+  for (const item of items) {
+    if (!item.time || !item.endTime) continue;
+    if (item.doneAt || item.skippedAt || item.postponedAt) continue;
+    const id = idOf(sourceDate, item.index);
+    const record = store[id] || {};
+    if (record.endNotifiedAt) continue;
+    // Only after the start reminder was already delivered: opening the app
+    // late should not fire both messages at once.
+    if (!record.notifiedAt) continue;
+    const end = new Date(`${planDate}T${item.endTime}:00`);
+    if (Number.isNaN(end.getTime()) || now.getTime() < end.getTime()) continue;
+    store[id] = { ...record, sourceDate, endNotifiedAt: Date.now() };
+    writeStore(store);
+    showDeviceNotification(
+      "Muda wa kumaliza umefika",
+      `"${item.text}" — ulipanga kumaliza saa ${item.endTime}. Unaendelea?`,
+      `mindloop-finish-${item.time}-${item.index}`,
+    );
+  }
+}
 
 let shownId = null;
 
@@ -282,7 +326,7 @@ function wireActions(actions, item, sourceDate, id) {
   };
 
   actions.replaceChildren(
-    btn("i-play", "Nimeana — Start", () => {
+    btn("i-play", "Nimeanza — Start", () => {
       act(markPriority(sourceDate, item.index, "startedAt"));
       hideCard();
     }),
@@ -345,8 +389,8 @@ export function renderReminders() {
   const store = readStore();
   const leadMin = readLead();
   pruneAnswered(store, items, sourceDate);
+  notifyExpectedFinish(items, sourceDate, planDate, now, store);
 
-  const followupMin = readFollowup();
   let target = null;
 
   if (planDate <= toDateKey(now)) {
@@ -355,30 +399,9 @@ export function renderReminders() {
       const id = idOf(sourceDate, item.index);
       const record = store[id];
 
-      if (!record) {
-        target = { item, id, first: true };
-        break;
-      }
-      if (record.snoozedUntil) {
-        if (now.getTime() >= record.snoozedUntil) {
-          target = { item, id, first: false };
-          break;
-        }
-        continue;
-      }
-      if (record.dismissedAt) {
-        // Follow-up: re-offer once after the configured minutes.
-        if (followupMin > 0) {
-          const due = record.dismissedAt + followupMin * 60000;
-          if (now.getTime() >= due && !record.followedUp) {
-            target = { item, id, first: false };
-            break;
-          }
-        }
-        continue;
-      }
-      // A record exists but is in no known state: treat as fresh.
-      target = { item, id, first: true };
+      if (record?.snoozedUntil && now.getTime() < record.snoozedUntil) continue;
+      if (record?.dismissedAt) continue;
+      target = { item, id };
       break;
     }
   }
@@ -389,8 +412,19 @@ export function renderReminders() {
   }
   if (shownId === target.id) return; // already showing this one
 
-  const { item, id, first } = target;
-  store[id] = { ...(store[id] || {}), sourceDate };
+  const { item, id } = target;
+  const record = store[id] || {};
+  // One device notification per priority, at the first moment it is due.
+  if (!record.notifiedAt) {
+    showDeviceNotification(
+      "Muda wa kuanza umefika",
+      `"${item.text}" — ${item.time}. Dakika 5 tu za kuanza zinatosheleza.`,
+      `mindloop-start-${item.time}-${item.index}`,
+    );
+    store[id] = { ...record, sourceDate, notifiedAt: Date.now() };
+  } else {
+    store[id] = { ...record, sourceDate };
+  }
   writeStore(store);
 
   const text = reminderText(item, now);
@@ -404,11 +438,7 @@ export function renderReminders() {
   dismiss.textContent = "Not now";
   dismiss.onclick = () => {
     const s = readStore();
-    s[id] = {
-      ...s[id],
-      dismissedAt: Date.now(),
-      followedUp: first ? false : true,
-    };
+    s[id] = { ...s[id], dismissedAt: Date.now() };
     writeStore(s);
     hideCard();
   };
@@ -432,6 +462,10 @@ function initReminders() {
       ? accountCard.insertBefore(settings, footer)
       : accountCard.append(settings);
   }
+
+  // Older accounts finished the tour before the app started asking; their next
+  // real tap brings the prompt once.
+  askOnFirstTap();
 
   renderReminders();
   if (timer) clearInterval(timer);
