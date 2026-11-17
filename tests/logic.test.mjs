@@ -5,7 +5,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  growthTimeline,
   mindloopScore,
+  patternCoach,
   streakHistory,
   weeklyReport,
   windowStats,
@@ -206,4 +208,48 @@ test("a start and finish time make one time block", () => {
   assert.equal(addMinutesToTime("09:00", 90), "10:30");
   assert.equal(addMinutesToTime("23:30", 60), "00:30");
   assert.equal(addMinutesToTime("", 30), "");
+});
+
+/* ---------- Spec §7: the coach, and §13: the timeline ---------- */
+
+test("the coach names only patterns its own records support", () => {
+  const coach = patternCoach(entries, "2026-11-08", NOW);
+
+  assert.equal(coach.ready, true);
+  assert.equal(coach.window.size, 28);
+  assert.ok(coach.observations.length >= 1);
+  assert.ok(coach.observations.length <= 3);
+  assert.ok(coach.focus.length > 0);
+});
+
+test("the coach refuses to invent a pattern for a new user", () => {
+  const fresh = [entry("2026-11-07", [priority("One small thing")])];
+  const coach = patternCoach(fresh, "2026-11-08", NOW);
+
+  assert.equal(coach.ready, false);
+  assert.deepEqual(coach.observations, []);
+  assert.match(coach.focus, /more days/);
+});
+
+test("the growth timeline dates real events, newest first", () => {
+  const { events, first } = growthTimeline(entries, "2026-11-08", NOW);
+
+  assert.equal(first, "2026-11-01");
+  assert.equal(events[0].date, "2026-11-07"); // the 7-day streak was reached that night
+  for (let i = 1; i < events.length; i++) {
+    assert.ok(events[i - 1].date >= events[i].date);
+  }
+
+  const firstReview = events.find((e) => e.title === "First review written");
+  assert.equal(firstReview.date, "2026-11-01");
+
+  const perfect = events.find((e) => e.title.startsWith("Every priority"));
+  assert.equal(perfect.date, "2026-11-02");
+
+  assert.ok(events.some((e) => e.title === "Your best week so far"));
+});
+
+test("an empty history has no timeline yet", () => {
+  const { events } = growthTimeline([], "2026-11-08", NOW);
+  assert.deepEqual(events, []);
 });
