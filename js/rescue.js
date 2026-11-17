@@ -258,11 +258,18 @@ function decoratePlan() {
     if (!item) return;
     if (item.doneAt || item.skippedAt || item.postponedAt) return;
 
-    const actions = li.querySelector(".plan-actions");
+    // Rescue is a plan move, so it sits with the quiet actions, not the answers.
+    const actions =
+      li.querySelector(".plan-secondary") || li.querySelector(".plan-actions");
     if (!actions || actions.querySelector(".rescue-open")) return;
 
-    const btn = el("button", "plan-btn rescue-open", "I'm stuck");
+    const btn = document.createElement("button");
     btn.type = "button";
+    btn.className = "plan-btn rescue-open";
+    btn.setAttribute("aria-label", "I'm stuck");
+    btn.dataset.tip = "I'm stuck";
+    btn.innerHTML =
+      '<svg class="icon" aria-hidden="true"><use href="#i-help"/></svg><span class="btn-label">I\'m stuck</span>';
     btn.addEventListener("click", () => openRescue(item, sourceDate));
     actions.append(btn);
   });

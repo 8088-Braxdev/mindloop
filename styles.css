@@ -342,29 +342,62 @@ input[type="number"]:focus {
   color: var(--muted);
   font-size: 0.9rem;
 }
-.plan-actions {
-  display: flex;
-  flex-wrap: wrap;
+/* Three actions per row, so a priority never turns into a wall of buttons. */
+.plan-actions,
+.plan-secondary,
+.reminder-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
-.plan-actions:empty {
+.reminder-actions {
+  margin-top: 0;
+}
+
+.plan-actions:empty,
+.plan-secondary:empty {
   display: none;
 }
-.plan-actions button {
-  flex: 1;
+
+.plan-actions button,
+.plan-secondary button,
+.reminder-actions button {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: 44px;
+  gap: 3px;
+  min-height: 56px;
+  padding: 8px 4px;
   background: transparent;
   color: var(--text);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.15;
+  text-align: center;
 }
-.plan-actions button:disabled {
+
+.plan-actions button .icon,
+.plan-secondary button .icon,
+.reminder-actions button .icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Plan moves are real, but they are not the answer: keep them quiet. */
+.plan-secondary button {
+  min-height: 46px;
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.plan-actions button:disabled,
+.plan-secondary button:disabled,
+.reminder-actions button:disabled {
   opacity: 0.4;
   cursor: default;
 }
@@ -381,15 +414,6 @@ input[type="number"]:focus {
   margin: 0 0 10px;
   color: var(--muted);
   font-size: 0.9rem;
-}
-.reminder-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.reminder-actions .plan-btn {
-  flex: 1 1 auto;
-  justify-content: center;
 }
 .reminder-dismiss {
   margin-top: 8px;
@@ -1097,14 +1121,19 @@ input[type="number"]:focus {
 }
 
 @media (max-width: 520px) {
-  /* Actions become 44px icon buttons; labels appear on tap/hover. */
+  /* Icons only, still three per row; the words appear on tap/hover. */
   .plan-actions .btn-label,
+  .plan-secondary .btn-label,
   .reminder-actions .btn-label {
     display: none;
   }
-  .plan-actions button {
-    flex: 0 0 44px;
-    width: 44px;
+  .plan-actions button,
+  .plan-secondary button,
+  .reminder-actions button {
+    min-height: 48px;
     padding: 0;
+  }
+  .plan-secondary button {
+    min-height: 44px;
   }
 }

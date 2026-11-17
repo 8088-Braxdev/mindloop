@@ -201,7 +201,8 @@ function planButton(iconId, label, onClick) {
   btn.type = "button";
   btn.className = "plan-btn";
   btn.setAttribute("aria-label", label);
-  // The label is hidden on small screens; data-tip shows it on hover/focus.
+  // Three actions per row. On phones the label is hidden and the icon stands
+  // for the action; data-tip still shows the words on hover/focus.
   btn.dataset.tip = label;
   btn.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg><span class="btn-label">${label}</span>`;
   btn.addEventListener("click", onClick);
@@ -271,8 +272,11 @@ function buildPlanItem(item, sourceDate, planDate) {
   const note = document.createElement("p");
   note.className = "confirm-msg";
 
+  // Two tidy rows of three: the answer first, then the quieter plan moves.
   const actions = document.createElement("div");
   actions.className = "plan-actions";
+  const secondary = document.createElement("div");
+  secondary.className = "plan-secondary";
 
   const isPreview = planDate > todayKey(); // tomorrow's plan: nothing to mark yet
   if (!isPreview) {
@@ -283,8 +287,8 @@ function buildPlanItem(item, sourceDate, planDate) {
     } else if (item.postponedAt) {
       note.textContent =
         "Moved to another day. No pressure — you can undo this if today changes.";
-      actions.append(
-        planButton("i-clock", "Undo postpone", () =>
+      secondary.append(
+        planButton("i-left", "Undo postpone", () =>
           onUndoPostpone(sourceDate, item.index),
         ),
       );
@@ -296,14 +300,6 @@ function buildPlanItem(item, sourceDate, planDate) {
           ),
         );
       }
-      actions.append(
-        planButton("i-clock", "Change time", () =>
-          onChangeTime(sourceDate, item.index, item),
-        ),
-        planButton("i-left", "Postpone", () =>
-          onPostpone(sourceDate, item.index),
-        ),
-      );
       if (confirming.has(item.index)) {
         note.textContent = HONESTY.ask;
         actions.append(
@@ -325,10 +321,18 @@ function buildPlanItem(item, sourceDate, planDate) {
           ),
         );
       }
+      secondary.append(
+        planButton("i-clock", "Change time", () =>
+          onChangeTime(sourceDate, item.index, item),
+        ),
+        planButton("i-right", "Postpone", () =>
+          onPostpone(sourceDate, item.index),
+        ),
+      );
     }
   }
 
-  li.append(text, meta, note, actions);
+  li.append(text, meta, note, actions, secondary);
   return li;
 }
 
