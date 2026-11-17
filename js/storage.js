@@ -247,6 +247,20 @@ export async function markPriority(dateKey, index, field) {
   return saveEntry(entry);
 }
 
+// Extra per-priority detail that is not a status stamp: the definition of
+// done, a completion note, the reason a task was moved. It lives inside the
+// priorities JSON, so no new database column is needed. null/"" removes a key.
+export async function setPriorityData(dateKey, index, patch) {
+  const entry = await getEntry(dateKey);
+  const item = entry?.priorities?.[index];
+  if (!item) return null;
+  for (const [key, value] of Object.entries(patch || {})) {
+    if (value === null || value === undefined || value === "") delete item[key];
+    else item[key] = value;
+  }
+  return saveEntry(entry);
+}
+
 // Postponing is the one answer a person may take back the same day.
 // A postpone is a plan change, not an outcome, so undoing it is honest too.
 export async function clearPriorityStamp(dateKey, index, field) {
