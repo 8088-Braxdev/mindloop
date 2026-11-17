@@ -51,6 +51,11 @@
             <symbol id="i-chart" viewBox="0 0 24 24">
                 <path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3" />
             </symbol>
+            <symbol id="i-target" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="12" cy="12" r="6" />
+                <circle cx="12" cy="12" r="2" />
+            </symbol>
             <symbol id="i-play" viewBox="0 0 24 24">
                 <polygon points="6 3 20 12 6 21 6 3" />
             </symbol>
@@ -143,6 +148,12 @@
                     <use href="#i-chart" />
                 </svg>
                 <span>Week</span>
+            </button>
+            <button class="tab" data-view="progress">
+                <svg class="icon">
+                    <use href="#i-target" />
+                </svg>
+                <span>Progress</span>
             </button>
             <button class="tab" data-view="account">
                 <svg class="icon">
@@ -290,6 +301,9 @@
                 </button>
                 <p id="copy-status" class="status" role="status"></p>
             </section>
+
+            <!-- PROGRESS VIEW: score, consistency, weekly report (built by js/measure.js) -->
+            <section id="view-progress" class="view" hidden></section>
 
             <!-- ACCOUNT VIEW -->
             <section id="view-account" class="view" hidden>

@@ -7,9 +7,9 @@
 // language: this only changes what language NEW AI insights are written in.
 // Saved entries and old insights are never translated or rewritten.
 //
-// This file is also the loader for the optional feature modules: reminders.js
-// and rescue.js are dynamically imported here so index.html never needs a new
-// script tag for a feature to work.
+// This file is also the loader for the optional feature modules: reminders.js,
+// rescue.js and measure.js are dynamically imported here so index.html never
+// needs a new script tag for a feature to work.
 
 import { supabase } from "./supabase.js";
 import { getSession, cachedUserId } from "./auth.js";
@@ -106,6 +106,9 @@ function loadOptionalModules() {
   });
   import("./rescue.js").catch((err) => {
     console.error("MindLoop: rescue module failed to load", err);
+  });
+  import("./measure.js").catch((err) => {
+    console.error("MindLoop: measure module failed to load", err);
   });
 }
 

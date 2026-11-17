@@ -162,7 +162,7 @@ export function dayStats(entries, dateKey, now) {
   const entry = entries.find((e) => e.date === dateKey) || null;
   const isFuture = dateKey > toDateKey(now);
 
-  let due = 0, started = 0, done = 0, onTime = 0, lateMinutesTotal = 0, postponed = 0;
+  let due = 0, started = 0, begun = 0, done = 0, onTime = 0, lateMinutesTotal = 0, postponed = 0;
   let cancelled = 0;
   for (const item of items) {
     const status = priorityStatus(item, dateKey, now);
@@ -182,6 +182,10 @@ export function dayStats(entries, dateKey, now) {
       if (isOnTime(item, dateKey)) onTime += 1;
     }
     if (item.doneAt) done += 1;
+    // Begun = the person tapped Start or marked it done. Marking a task done
+    // is a confirmed answer that the work happened, so it counts as begun
+    // even when Start was never tapped (see METRICS.md).
+    if (item.startedAt || item.doneAt) begun += 1;
   }
 
   return {
@@ -192,7 +196,7 @@ export function dayStats(entries, dateKey, now) {
     filled: entry !== null,
     reason: entry ? entry.reason : "",
     planned: items.length,
-    due, started, done, onTime, postponed, cancelled, lateMinutesTotal,
+    due, started, begun, done, onTime, postponed, cancelled, lateMinutesTotal,
   };
 }
 // True when the item's time has come and the user has not answered yet.
@@ -207,6 +211,7 @@ export function weekStats(entries, weekStart, now) {
   const sum = (key) => past.reduce((total, d) => total + d[key], 0);
   const due = sum("due");
   const started = sum("started");
+  const begun = sum("begun");
   const done = sum("done");
   const onTime = sum("onTime");
   const postponed = sum("postponed");
@@ -228,7 +233,7 @@ export function weekStats(entries, weekStart, now) {
     range: weekRangeLabel(weekStart),
     days,
     daysFilled: days.filter((d) => d.filled).length,
-    due, started, done, onTime, postponed, cancelled,
+    due, started, begun, done, onTime, postponed, cancelled,
     onTimeRate: pct(onTime, due),
     doneRate: pct(done, due),
     avgLateMinutes: started === 0 ? null : Math.round(sum("lateMinutesTotal") / started),
@@ -427,3 +432,320 @@ export function validateReview(review) {
 }
 // The final delete button unlocks only when the person types DELETE.
 export const isDeleteConfirmed = (text) => String(text).trim().toUpperCase() === "DELETE";
+
+/* ---------- Measurement: score, consistency, milestones, weekly report ----------
+   Spec §9-§12. Every number below comes from answers the person actually gave
+   (startedAt / doneAt / skippedAt / postponedAt) and reviews they wrote.
+   App opens and sent reminders are never outcomes.
+
+   The same rules are written down for people in METRICS.md and in the
+   "How this score works" panel on the Progress tab.
+--------------------------------------------------------------------------- */
+
+export const SCORE_WEIGHTS = {
+  completion: 40,
+  start: 25,
+  consistency: 20,
+  reflection: 15,
+};
+export const SCORE_WINDOW_DAYS = 7;
+export const SCORE_MIN_PLANNED_DAYS = 3;
+export const SCORE_MIN_REVIEWS = 2;
+export const MILESTONES = [3, 7, 14, 30];
+
+// Rounded percentage, or null when there is nothing to divide by.
+export function percent(part, whole) {
+  return whole === 0 ? null : Math.round((part / whole) * 100);
+}
+
+// The last `size` days ending on endKey, oldest first. Never in the future.
+export function windowDays(endKey, size, now = new Date()) {
+  const end = endKey > toDateKey(now) ? toDateKey(now) : endKey;
+  const days = [];
+  for (let n = size - 1; n >= 0; n--) days.push(addDays(end, -n));
+  return days;
+}
+
+// Totals for a rolling window. Same denominator rules as the Week view:
+//   cancelled (an honest "not done") stays in the denominator,
+//   postponed (the task moved) leaves it.
+// `plannedDays` counts days that had work come due; a rest day is not a fail.
+export function windowStats(entries, endKey, size, now = new Date()) {
+  const keys = windowDays(endKey, size, now);
+  const start = keys[0];
+  const end = keys[keys.length - 1];
+  const days = keys.map((key) => dayStats(entries, key, now));
+  const elapsed = days.filter((d) => !d.isFuture);
+
+  // Days before the person's first review had no plan, so a missing review
+  // there is not counted against them.
+  const first = firstEntryDate(entries);
+  const counted =
+    first && first > start ? elapsed.filter((d) => d.date >= first) : elapsed;
+
+  const total = (key) => elapsed.reduce((sum, d) => sum + d[key], 0);
+  const due = total("due");
+  const begun = total("begun");
+  const done = total("done");
+  const plannedDays = elapsed.filter(
+    (d) => d.due > 0 || d.postponed > 0,
+  ).length;
+  const followThroughDays = elapsed.filter(
+    (d) => d.done > 0 || d.started > 0,
+  ).length;
+  const reviewDays = counted.filter((d) => d.filled).length;
+
+  return {
+    start,
+    end,
+    size,
+    days,
+    elapsedDays: counted.length,
+    reviewDays,
+    plannedDays,
+    followThroughDays,
+    planned: total("planned"),
+    due,
+    started: total("started"),
+    begun,
+    done,
+    onTime: total("onTime"),
+    postponed: total("postponed"),
+    cancelled: total("cancelled"),
+    doneRate: percent(done, due),
+    startRate: percent(begun, due),
+    onTimeRate: percent(total("onTime"), due),
+    consistencyRate: percent(followThroughDays, plannedDays),
+    reflectionRate: percent(reviewDays, counted.length),
+  };
+}
+
+// The MindLoop Score: each part's real result multiplied by its weight, then
+// divided by the weights that had data. Weights are never simply added.
+// A new user gets "Still learning your pattern" (score null) instead of a
+// misleading low number.
+export function mindloopScore(
+  entries,
+  now = new Date(),
+  endKey = toDateKey(now),
+  size = SCORE_WINDOW_DAYS,
+) {
+  const w = windowStats(entries, endKey, size, now);
+
+  const components = [
+    {
+      id: "completion",
+      label: "Priorities completed",
+      weight: SCORE_WEIGHTS.completion,
+      part: w.done,
+      whole: w.due,
+    },
+    {
+      id: "start",
+      label: "Priorities begun",
+      weight: SCORE_WEIGHTS.start,
+      part: w.begun,
+      whole: w.due,
+    },
+    {
+      id: "consistency",
+      label: "Follow-through days",
+      weight: SCORE_WEIGHTS.consistency,
+      part: w.followThroughDays,
+      whole: w.plannedDays,
+    },
+    {
+      id: "reflection",
+      label: "Days reviewed",
+      weight: SCORE_WEIGHTS.reflection,
+      part: w.reviewDays,
+      whole: w.elapsedDays,
+    },
+  ].map((component) => ({
+    ...component,
+    percent: percent(component.part, component.whole),
+    fraction: component.whole > 0 ? component.part / component.whole : null,
+  }));
+
+  const counted = components.filter((c) => c.fraction !== null);
+  const countedWeight = counted.reduce((sum, c) => sum + c.weight, 0);
+  const available =
+    w.plannedDays >= SCORE_MIN_PLANNED_DAYS &&
+    w.reviewDays >= SCORE_MIN_REVIEWS;
+  const score =
+    available && countedWeight > 0
+      ? Math.round(
+          (counted.reduce((sum, c) => sum + c.fraction * c.weight, 0) /
+            countedWeight) *
+            100,
+        )
+      : null;
+
+  return {
+    available,
+    score,
+    window: w,
+    components,
+    countedWeight,
+    missing: {
+      plannedDays: Math.max(0, SCORE_MIN_PLANNED_DAYS - w.plannedDays),
+      reviews: Math.max(0, SCORE_MIN_REVIEWS - w.reviewDays),
+    },
+    weakest: counted.length
+      ? counted.reduce((low, c) => (c.fraction < low.fraction ? c : low)).id
+      : null,
+  };
+}
+
+// Best run of consecutive review days, ever. Milestones are derived from
+// history, so breaking a streak cannot erase one and nothing is awarded twice.
+export function streakHistory(entries, todayKey) {
+  const filled = [...new Set(entries.map((e) => e.date))].sort();
+  let best = 0;
+  let bestEnd = null;
+  let run = 0;
+  let previous = null;
+
+  for (const key of filled) {
+    run = previous && addDays(previous, 1) === key ? run + 1 : 1;
+    if (run > best) {
+      best = run;
+      bestEnd = key;
+    }
+    previous = key;
+  }
+
+  return {
+    current: computeStreak(entries, todayKey),
+    best,
+    bestEnd,
+    earned: MILESTONES.filter((m) => best >= m),
+    next: MILESTONES.find((m) => best < m) || null,
+  };
+}
+
+// One experiment for the coming week, chosen from the person's own blocker
+// and results. Never a long generic list.
+export function weeklyExperiment(stats) {
+  if (stats.due === 0) {
+    return "Next week, plan one small priority with a start time. One is enough to begin.";
+  }
+  const reason = stats.topReason ? stats.topReason.reason : null;
+  if (reason === "distraction") {
+    return "Try one priority with your phone face-down for the first 25 minutes, and see whether starting gets easier.";
+  }
+  if (reason === "overwhelmed") {
+    return "Pick your biggest priority and write its first two-minute step before you start it.";
+  }
+  if (reason === "fatigue") {
+    return "Move your most important priority to the time of day when you usually have the most energy.";
+  }
+  if (reason === "motivation") {
+    return "Choose one priority and commit to only five minutes of it. Stopping after five is allowed.";
+  }
+  if ((stats.doneRate ?? 100) < 50) {
+    return "Plan two priorities instead of three next week, and give each one a start time.";
+  }
+  if ((stats.onTimeRate ?? 100) < 50) {
+    return "Give one priority a start time and begin within ten minutes of it, just for one day.";
+  }
+  return "Keep the same number of priorities and add a start time to one of them.";
+}
+
+// Spec §12: a concise report of the week, compared only with a full previous
+// week of real records. Patterns are stated with counts, never as "always".
+export function weeklyReport(entries, weekStart, now = new Date()) {
+  const stats = weekStats(entries, weekStart, now);
+  const previousStart = shiftWeek(weekStart, -1);
+  const previous = weekStats(entries, previousStart, now);
+  const today = toDateKey(now);
+  const first = firstEntryDate(entries);
+
+  const elapsed = stats.days.filter((d) => !d.isFuture);
+  const plannedDays = elapsed.filter(
+    (d) => d.due > 0 || d.postponed > 0,
+  ).length;
+  const followThroughDays = elapsed.filter(
+    (d) => d.done > 0 || d.started > 0,
+  ).length;
+
+  // Comparing a half-finished week with a full one would not be honest.
+  const weekOver = weekStart < mondayOf(today);
+  const comparable =
+    weekOver && previous.due > 0 && first !== null && first <= previousStart;
+
+  const comparison = comparable
+    ? {
+        previousRange: previous.range,
+        previousDone: previous.done,
+        previousDue: previous.due,
+        previousDoneRate: previous.doneRate,
+        previousStartRate: percent(previous.begun, previous.due),
+        doneDelta:
+          stats.doneRate === null || previous.doneRate === null
+            ? null
+            : stats.doneRate - previous.doneRate,
+        startDelta:
+          stats.due === 0 || previous.due === 0
+            ? null
+            : percent(stats.begun, stats.due) -
+              percent(previous.begun, previous.due),
+        dueDelta: stats.due - previous.due,
+      }
+    : null;
+
+  // Rescheduling is a plan change the person recorded, not a failure.
+  let rescheduled = 0;
+  for (const day of elapsed) {
+    const { items } = getPlan(entries, day.date);
+    rescheduled += items.filter((item) => (item.rescheduled || []).length > 0)
+      .length;
+  }
+
+  const patterns = [];
+  if (stats.daysFilled >= 3 && stats.topReason && stats.topReason.count >= 2) {
+    patterns.push(
+      `${stats.topReason.label} was your main blocker on ${stats.topReason.count} of the ${stats.daysFilled} days you reviewed.`,
+    );
+  }
+  const dueDays = elapsed.filter((d) => d.due > 0);
+  const doneDays = dueDays.filter((d) => d.done > 0);
+  if (dueDays.length >= 3 && doneDays.length >= 2) {
+    const best = doneDays.reduce((top, d) => (d.done > top.done ? d : top));
+    if (best.done >= 2) {
+      patterns.push(
+        `You completed ${best.done} priorities on ${best.weekday} — more than on any other day this week.`,
+      );
+    }
+  }
+  if (patterns.length === 0 && rescheduled >= 2) {
+    patterns.push(
+      `You changed the start time of ${rescheduled} priorities during the week.`,
+    );
+  }
+
+  return {
+    weekStart,
+    number: stats.number,
+    range: stats.range,
+    stats,
+    planned: stats.days.reduce((sum, d) => sum + d.planned, 0),
+    due: stats.due,
+    started: stats.started,
+    begun: stats.begun,
+    done: stats.done,
+    postponed: stats.postponed,
+    cancelled: stats.cancelled,
+    completionRate: stats.doneRate,
+    startRate: percent(stats.begun, stats.due),
+    plannedDays,
+    followThroughDays,
+    consistencyRate: percent(followThroughDays, plannedDays),
+    rescheduled,
+    blockers: stats.reasons,
+    patterns: patterns.slice(0, 2),
+    comparable,
+    comparison,
+    experiment: weeklyExperiment(stats),
+  };
+}
