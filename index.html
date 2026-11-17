@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>MindLoop: A calm nightly review and daily plan</title>
     <meta name="description"
         content="MindLoop is a nightly review. Note your wins and challenges, plan tomorrow's three priorities with start times, and keep your streak.">
@@ -145,7 +145,7 @@
         </header>
         <p id="sync-status" class="status" role="status" hidden></p>
 
-        <nav class="tabs">
+        <nav class="tabs" id="tabbar" aria-label="Main">
             <button class="tab is-active" data-view="today" data-tip="Today" aria-label="Today">
                 <svg class="icon">
                     <use href="#i-sun" />
@@ -224,9 +224,9 @@
                             <textarea id="lessons" rows="2"></textarea>
 
                             <h3 class="priority-head">Tomorrow's 3 priorities</h3>
-                            <p class="hint priority-head">Write the task, the time you will start it, and optionally how
-                                long you expect it to take. The clock is your start time — MindLoop reminds you then,
-                                using the reminder settings in Account.</p>
+                            <p class="hint priority-head">Write the task and the time you will start it. Add how long you
+                                expect it to take, and the finish time appears next to it. Both are optional — MindLoop
+                                reminds you at the start time, using the reminder settings in Account.</p>
                             <p class="hint priority-head">
                                 Write carefully. Once you save, these priorities are locked and can't be changed. You
                                 can still edit your review.
@@ -234,41 +234,50 @@
                             <div class="priority-row">
                                 <input id="p1" type="text" maxlength="120" placeholder="Priority 1"
                                     aria-label="Priority 1">
-                                <div class="time-field">
+                                <div class="time-fields">
                                     <svg class="icon" aria-hidden="true">
                                         <use href="#i-clock" />
                                     </svg>
                                     <input id="t1" type="time" aria-label="Start time for priority 1">
+                                    <span class="time-for" aria-hidden="true">for</span>
+                                    <input id="d1" type="number" min="1" max="600" step="1" inputmode="numeric"
+                                        placeholder="0" aria-label="Estimated minutes for priority 1"
+                                        title="How long it will take, in minutes (optional)">
+                                    <span class="time-unit" aria-hidden="true">min</span>
+                                    <span id="end1" class="time-end"></span>
                                 </div>
-                                <input id="d1" type="number" min="1" max="600" step="1" inputmode="numeric"
-                                    placeholder="min" aria-label="Estimated minutes for priority 1"
-                                    title="How long it will take, in minutes (optional)">
                             </div>
                             <div class="priority-row">
                                 <input id="p2" type="text" maxlength="120" placeholder="Priority 2"
                                     aria-label="Priority 2">
-                                <div class="time-field">
+                                <div class="time-fields">
                                     <svg class="icon" aria-hidden="true">
                                         <use href="#i-clock" />
                                     </svg>
                                     <input id="t2" type="time" aria-label="Start time for priority 2">
+                                    <span class="time-for" aria-hidden="true">for</span>
+                                    <input id="d2" type="number" min="1" max="600" step="1" inputmode="numeric"
+                                        placeholder="0" aria-label="Estimated minutes for priority 2"
+                                        title="How long it will take, in minutes (optional)">
+                                    <span class="time-unit" aria-hidden="true">min</span>
+                                    <span id="end2" class="time-end"></span>
                                 </div>
-                                <input id="d2" type="number" min="1" max="600" step="1" inputmode="numeric"
-                                    placeholder="min" aria-label="Estimated minutes for priority 2"
-                                    title="How long it will take, in minutes (optional)">
                             </div>
                             <div class="priority-row">
                                 <input id="p3" type="text" maxlength="120" placeholder="Priority 3"
                                     aria-label="Priority 3">
-                                <div class="time-field">
+                                <div class="time-fields">
                                     <svg class="icon" aria-hidden="true">
                                         <use href="#i-clock" />
                                     </svg>
                                     <input id="t3" type="time" aria-label="Start time for priority 3">
+                                    <span class="time-for" aria-hidden="true">for</span>
+                                    <input id="d3" type="number" min="1" max="600" step="1" inputmode="numeric"
+                                        placeholder="0" aria-label="Estimated minutes for priority 3"
+                                        title="How long it will take, in minutes (optional)">
+                                    <span class="time-unit" aria-hidden="true">min</span>
+                                    <span id="end3" class="time-end"></span>
                                 </div>
-                                <input id="d3" type="number" min="1" max="600" step="1" inputmode="numeric"
-                                    placeholder="min" aria-label="Estimated minutes for priority 3"
-                                    title="How long it will take, in minutes (optional)">
                             </div>
 
                             <button type="submit" class="primary">Save review</button>
