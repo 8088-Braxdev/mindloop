@@ -19,13 +19,15 @@ import {
   markPriority,
   reschedulePriority,
 } from "./storage.js";
-import { getCardPlan, priorityStatus, toDateKey } from "./logic.js";
+import { getCardPlan, toDateKey } from "./logic.js";
 import { cachedUserId } from "./auth.js";
 
 const TICK_MS = 30000; // check every 30 seconds
 const REMINDER_KEY = "mindloop:reminders";
 const FOLLOWUP_KEY = "mindloop:followup";
 const VALID_FOLLOWUP = new Set([0, 5, 15, 30]);
+const LEAD_KEY = "mindloop:reminder-lead";
+const VALID_LEAD = new Set([0, 5, 10, 15]);
 
 const idOf = (sourceDate, index) => `${sourceDate}#${index}`;
 
@@ -70,6 +72,28 @@ function setFollowup(value) {
   }
 }
 
+// How many minutes before a priority's start time the card appears.
+function readLead() {
+  const uid = cachedUserId();
+  if (!uid) return 0;
+  try {
+    const value = Number(localStorage.getItem(`${LEAD_KEY}:${uid}`));
+    return VALID_LEAD.has(value) ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setLead(value) {
+  const uid = cachedUserId();
+  if (!uid || !VALID_LEAD.has(value)) return;
+  try {
+    localStorage.setItem(`${LEAD_KEY}:${uid}`, String(value));
+  } catch {
+    // Convenience setting, not fatal.
+  }
+}
+
 // Drop records for priorities that now have an answer. Keeps the store small
 // and prevents stale reminders for finished work.
 function pruneAnswered(store, items, sourceDate) {
@@ -92,12 +116,14 @@ function pruneAnswered(store, items, sourceDate) {
   if (changed) writeStore(store);
 }
 
-function needsReminder(item, planDate, now) {
-  // Only items with a start time whose moment has come, still unanswered.
+function needsReminder(item, planDate, now, leadMin = 0) {
+  // Only items with a start time whose moment is near, still unanswered.
   if (!item.time) return false;
   if (item.doneAt || item.skippedAt || item.postponedAt || item.startedAt)
     return false;
-  return priorityStatus(item, planDate, now) === "late";
+  const start = new Date(`${planDate}T${item.time}:00`);
+  if (Number.isNaN(start.getTime())) return false;
+  return now.getTime() >= start.getTime() - leadMin * 60000;
 }
 
 /* ---------- DOM the module owns ---------- */
@@ -136,7 +162,28 @@ function buildSettings() {
   const hint = document.createElement("p");
   hint.className = "hint";
   hint.textContent =
-    "When a start time arrives and the app is open, a reminder card appears. Reminders never assume you failed, and there are no endless alerts.";
+    "MindLoop uses each priority's start time. When that time is near and the app is open, a reminder card appears. Reminders never assume you failed, and there are no endless alerts."
+
+  const leadLabel = document.createElement("label");
+  leadLabel.htmlFor = "reminder-lead-select";
+  leadLabel.textContent = "Remind me";
+
+  const lead = document.createElement("select");
+  lead.id = "reminder-lead-select";
+  lead.setAttribute("aria-label", "When to remind you before a priority starts");
+  for (const [value, text] of [
+    [0, "At the start time"],
+    [5, "5 minutes before"],
+    [10, "10 minutes before"],
+    [15, "15 minutes before"],
+  ]) {
+    const option = document.createElement("option");
+    option.value = String(value);
+    option.textContent = text;
+    lead.append(option);
+  }
+  lead.value = String(readLead());
+  lead.addEventListener("change", () => setLead(Number(lead.value)));
 
   const label = document.createElement("label");
   label.htmlFor = "followup-select";
@@ -164,7 +211,7 @@ function buildSettings() {
   scope.textContent =
     "In-app only for now. Closed-app notifications need a push subscription and arrive in a later update — MindLoop will never claim guaranteed delivery.";
 
-  wrap.append(head, hint, label, select, scope);
+  wrap.append(head, hint, leadLabel, lead, label, select, scope);
   return wrap;
 }
 
@@ -194,19 +241,21 @@ function hideCard() {
 
 // The friendly text uses the person's own words (the task), never shame.
 function reminderText(item, now) {
-  const lateBy = item.time
-    ? Math.max(
-        0,
-        Math.round(
-          (now - new Date(`${toDateKey(now)}T${item.time}:00`).getTime()) /
-            60000,
-        ),
-      )
-    : 0;
-  const when =
-    lateBy > 0 && lateBy < 60
-      ? `You planned "${item.text}" for ${item.time} (${lateBy} min ago).`
-      : `You planned "${item.text}" for ${item.time}.`;
+  const start = item.time
+    ? new Date(`${toDateKey(now)}T${item.time}:00`)
+    : null;
+  const minutes =
+    start && !Number.isNaN(start.getTime())
+      ? Math.round((start.getTime() - now.getTime()) / 60000)
+      : 0;
+  let when;
+  if (minutes > 0) {
+    when = `"${item.text}" starts in ${minutes} min (${item.time}).`;
+  } else if (minutes === 0) {
+    when = `"${item.text}" starts now (${item.time}).`;
+  } else {
+    when = `You planned "${item.text}" for ${item.time} (${Math.abs(minutes)} min ago).`;
+  }
   return {
     title: "Muda wako wa kuanza umefika",
     when,
@@ -221,21 +270,23 @@ function act(promise) {
 }
 
 function wireActions(actions, item, sourceDate, id) {
-  const btn = (label, onClick) => {
+  const btn = (iconId, label, onClick) => {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "plan-btn";
-    b.textContent = label;
+    b.setAttribute("aria-label", label);
+    b.dataset.tip = label;
+    b.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg><span class="btn-label">${label}</span>`;
     b.addEventListener("click", onClick);
     return b;
   };
 
   actions.replaceChildren(
-    btn("Nimeana — Start", () => {
+    btn("i-play", "Nimeana — Start", () => {
       act(markPriority(sourceDate, item.index, "startedAt"));
       hideCard();
     }),
-    btn("Nikumbushe baadaye (15 min)", () => {
+    btn("i-clock", "Nikumbushe baadaye (15 min)", () => {
       const s = readStore();
       s[id] = {
         ...s[id],
@@ -245,7 +296,7 @@ function wireActions(actions, item, sourceDate, id) {
       writeStore(s);
       hideCard();
     }),
-    btn("Badilisha muda", () => {
+    btn("i-calendar", "Badilisha muda", () => {
       const time = prompt(
         `New start time for "${item.text}" (HH:MM). Leave empty for no time.`,
         item.time || "",
@@ -262,11 +313,11 @@ function wireActions(actions, item, sourceDate, id) {
       act(reschedulePriority(sourceDate, item.index, clean));
       hideCard();
     }),
-    btn("Nimekamilisha", () => {
+    btn("i-check", "Nimekamilisha", () => {
       act(markPriority(sourceDate, item.index, "doneAt"));
       hideCard();
     }),
-    btn("Nimekwama", () => {
+    btn("i-help", "Nimekwama", () => {
       // Spec §6: stuck opens Rescue Mode, it does not postpone the task.
       import("./rescue.js")
         .then((rescue) => {
@@ -292,6 +343,7 @@ export function renderReminders() {
   );
   const now = new Date();
   const store = readStore();
+  const leadMin = readLead();
   pruneAnswered(store, items, sourceDate);
 
   const followupMin = readFollowup();
@@ -299,7 +351,7 @@ export function renderReminders() {
 
   if (planDate <= toDateKey(now)) {
     for (const item of items) {
-      if (!needsReminder(item, planDate, now)) continue;
+      if (!needsReminder(item, planDate, now, leadMin)) continue;
       const id = idOf(sourceDate, item.index);
       const record = store[id];
 

@@ -166,7 +166,10 @@ function planButton(iconId, label, onClick) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "plan-btn";
-  btn.innerHTML = `<svg class="icon"><use href="#${iconId}"/></svg><span>${label}</span>`;
+  btn.setAttribute("aria-label", label);
+  // The label is hidden on small screens; data-tip shows it on hover/focus.
+  btn.dataset.tip = label;
+  btn.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg><span class="btn-label">${label}</span>`;
   btn.addEventListener("click", onClick);
   return btn;
 }
