@@ -17,6 +17,7 @@
 
 import { markPriority, reschedulePriority, getEntriesLocal } from "./storage.js";
 import { getCardPlan, toDateKey } from "./logic.js";
+import { askStartTime } from "./timesheet.js";
 
 /* ---------- Blockers (spec §6 list) ---------- */
 
@@ -193,15 +194,14 @@ function askOutcome(item, sourceDate, step) {
     ["I need a break", () => closeRescue()],
     [
       "Reschedule it",
-      () => {
-        const time = prompt(
-          `New start time for "${item.text}" (HH:MM). Leave empty for no time.`,
-          item.time || "",
-        );
+      async () => {
+        const time = await askStartTime({
+          title: "New start time",
+          text: item.text,
+          time: item.time || "",
+        });
         if (time === null) return;
-        const clean = (time || "").trim();
-        if (clean !== "" && !/^\d{1,2}:\d{2}$/.test(clean)) return;
-        quiet(reschedulePriority(sourceDate, item.index, clean));
+        quiet(reschedulePriority(sourceDate, item.index, time));
       },
     ],
     [
