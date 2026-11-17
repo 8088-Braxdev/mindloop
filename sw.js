@@ -1,7 +1,7 @@
 // App files are served from the device copy and refreshed in the background.
 // Supabase, Google sign-in and /api/ calls always go to the network.
 
-const CACHE = "mindloop-shell-v42";
+const CACHE = "mindloop-shell-v43";
 const SHELL = [
   "./",
   "index.html",
@@ -18,6 +18,7 @@ const SHELL = [
   "js/reminders.js",
   "js/rescue.js",
   "js/measure.js",
+  "js/feedback.js",
   "privacy.html",
   "terms.html",
   "manifest.webmanifest",
@@ -59,6 +60,19 @@ self.addEventListener("activate", (event) => {
       ),
   );
   self.clients.claim();
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((list) => {
+        const open = list.find((client) => "focus" in client);
+        if (open) return open.focus();
+        return self.clients.openWindow("./");
+      }),
+  );
 });
 
 self.addEventListener("fetch", (event) => {

@@ -6,6 +6,7 @@
 
 import { supabase } from "./supabase.js";
 import { getSession, cachedUserId } from "./auth.js";
+import { plannedMinutes, addMinutesToTime } from "./logic.js";
 
 const TABLE = "entries";
 const cacheKey = (uid) => `mindloop:cache:${uid}`;
@@ -259,6 +260,8 @@ export async function clearPriorityStamp(dateKey, index, field) {
 
 // Change or remove a priority's start time (spec §4: rescheduling must
 // preserve the task and its history). Every move is recorded on the item.
+// A start and finish time is one block, so moving the start moves the finish
+// by the same length instead of leaving the block inside out.
 export async function reschedulePriority(dateKey, index, time) {
   const entry = await getEntry(dateKey);
   const item = entry?.priorities?.[index];
@@ -266,11 +269,13 @@ export async function reschedulePriority(dateKey, index, time) {
   const from = item.time || null;
   const to = time ? time : null; // empty time = remove it; time is optional
   if (from === to) return entry;
+  const length = plannedMinutes(item.time, item.endTime);
   item.rescheduled = [
     ...(item.rescheduled || []),
     { from, to, at: new Date().toISOString() },
   ];
   item.time = to;
+  item.endTime = to && length ? addMinutesToTime(to, length) : null;
   return saveEntry(entry);
 }
 

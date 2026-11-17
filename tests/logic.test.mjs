@@ -9,6 +9,8 @@ import {
   streakHistory,
   weeklyReport,
   windowStats,
+  plannedMinutes,
+  addMinutesToTime,
 } from "../js/logic.js";
 
 const NOW = new Date(2026, 10, 8, 12, 0, 0); // Sunday 8 November 2026, noon
@@ -190,4 +192,18 @@ test("a completed week is compared with the previous week", () => {
   assert.equal(report.comparison.doneDelta, -50);
   assert.equal(report.comparison.startDelta, -50);
   assert.equal(report.comparison.previousRange, "19 Oct to 25 Oct");
+});
+
+test("a start and finish time make one time block", () => {
+  assert.equal(plannedMinutes("09:00", "10:30"), 90);
+  assert.equal(plannedMinutes("9:05", "09:35"), 30);
+  assert.equal(plannedMinutes("23:30", "00:30"), 60); // crosses midnight
+  assert.equal(plannedMinutes("09:00", "09:00"), null); // not a length
+  assert.equal(plannedMinutes("", "10:00"), null);
+  assert.equal(plannedMinutes("09:00", ""), null);
+  assert.equal(plannedMinutes("24:00", "10:00"), null);
+
+  assert.equal(addMinutesToTime("09:00", 90), "10:30");
+  assert.equal(addMinutesToTime("23:30", 60), "00:30");
+  assert.equal(addMinutesToTime("", 30), "");
 });

@@ -32,6 +32,8 @@ import {
   weekFacts,
   dayFacts,
   addDays,
+  plannedMinutes,
+  addMinutesToTime,
   validateReview,
   isDeleteConfirmed,
   getCardPlan,
@@ -61,7 +63,7 @@ let hasToday = false; // review ya leo imeshasaviwa
 
 function clearForm() {
   $("review-form").reset();
-  syncAllEndTimes();
+  syncAllTimeBlocks();
 }
 // Saved tonight and not editing: hide priority inputs, show the shield.
 function syncPriorityMode() {
@@ -119,36 +121,32 @@ async function answer(sourceDate, index, field) {
 const $ = (id) => document.getElementById(id);
 const todayKey = () => toDateKey(new Date());
 
-// The start time and the expected minutes are one group. When both are set,
-// show the finish time so the plan reads like a real time block.
-function syncEndTime(n) {
-  const end = $(`end${n}`);
-  if (!end) return;
-  const time = $(`t${n}`).value;
-  const minutes = Number($(`d${n}`).value);
-  if (!time || !Number.isFinite(minutes) || minutes < 1) {
-    end.textContent = "";
-    return;
-  }
-  const [h, m] = time.split(":").map(Number);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) {
-    end.textContent = "";
-    return;
-  }
-  const total = (h * 60 + m + minutes) % (24 * 60);
-  const hh = String(Math.floor(total / 60)).padStart(2, "0");
-  const mm = String(total % 60).padStart(2, "0");
-  end.textContent = `→ ${hh}:${mm}`;
+// Start and finish are one time block: the person picks two clock times and
+// the length is worked out from them, so there is no separate minutes field.
+function formatDuration(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h}h`;
+  return `${m} min`;
 }
 
-function syncAllEndTimes() {
-  for (const n of [1, 2, 3]) syncEndTime(n);
+function syncTimeBlock(n) {
+  const label = $(`dur${n}`);
+  if (!label) return;
+  const minutes = plannedMinutes($(`t${n}`)?.value, $(`e${n}`)?.value);
+  label.textContent = minutes ? formatDuration(minutes) : "";
+  label.title = minutes ? `${minutes} minutes` : "";
+}
+
+function syncAllTimeBlocks() {
+  for (const n of [1, 2, 3]) syncTimeBlock(n);
 }
 
 function initPriorityTimes() {
   for (const n of [1, 2, 3]) {
-    $(`t${n}`)?.addEventListener("input", () => syncEndTime(n));
-    $(`d${n}`)?.addEventListener("input", () => syncEndTime(n));
+    $(`t${n}`)?.addEventListener("input", () => syncTimeBlock(n));
+    $(`e${n}`)?.addEventListener("input", () => syncTimeBlock(n));
   }
 }
 
@@ -261,8 +259,13 @@ function buildPlanItem(item, sourceDate, planDate) {
 
   const meta = document.createElement("p");
   meta.className = "plan-meta";
-  const duration = item.duration ? ` · ${item.duration} min` : "";
-  meta.textContent = `${item.time || "No time"}${duration} · ${STATUS_TEXT[status]}`;
+  const block = item.time
+    ? item.endTime
+      ? `${item.time} – ${item.endTime}`
+      : item.time
+    : "No time";
+  const duration = item.duration ? ` · ${formatDuration(item.duration)}` : "";
+  meta.textContent = `${block}${duration} · ${STATUS_TEXT[status]}`;
 
   const note = document.createElement("p");
   note.className = "confirm-msg";
@@ -604,12 +607,15 @@ function readForm(previous) {
   const priorities = [1, 2, 3].map((n, i) => {
     const text = $(`p${n}`).value.trim();
     const time = text ? $(`t${n}`).value : ""; // saa bila maandishi inapuuzwa
-    const durationRaw = text ? $(`d${n}`).value : "";
-    const duration = durationRaw ? Number(durationRaw) : null;
+    const endTime = text ? $(`e${n}`).value : "";
+    // The length is derived from the two clock times; it is stored so the
+    // stats and AI still see an estimate, but nobody types minutes.
+    const duration = plannedMinutes(time, endTime);
     const same = old[i] && old[i].text === text;
     return {
       text,
       time,
+      endTime: endTime || null,
       duration,
       startedAt: same ? old[i].startedAt || null : null,
       doneAt: same ? old[i].doneAt || null : null,
@@ -638,9 +644,11 @@ function fillForm(entry) {
   (entry.priorities || []).forEach((p, i) => {
     $(`p${i + 1}`).value = p.text || "";
     $(`t${i + 1}`).value = p.time || "";
-    $(`d${i + 1}`).value = p.duration || "";
+    // Older plans only stored a start time and a length: rebuild the finish.
+    $(`e${i + 1}`).value =
+      p.endTime || addMinutesToTime(p.time, p.duration) || "";
   });
-  syncAllEndTimes();
+  syncAllTimeBlocks();
 }
 
 async function onSubmit(event) {
@@ -851,7 +859,7 @@ const TOUR_STEPS = [
     view: "today",
     target: "review-form",
     title: "Tonight's review",
-    text: "Each night, note your wins and challenges, then plan tomorrow's three priorities with a start time. After you save, priorities lock until tomorrow. You can still edit your review.",
+    text: "Each night, note your wins and challenges, then plan tomorrow's three priorities with a start and finish time. After you save, priorities lock until tomorrow. You can still edit your review.",
   },
   {
     view: "today",

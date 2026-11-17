@@ -984,30 +984,84 @@ input[type="number"]:focus {
   outline: none;
 }
 .time-fields input[type="time"] {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   width: auto;
 }
-.time-fields input[type="number"] {
-  flex: 0 0 auto;
-  width: 44px;
-  padding-right: 0;
-  text-align: right;
-}
 .time-for,
-.time-unit,
-.time-end {
+.time-dur {
   color: var(--muted);
   font-size: 0.8rem;
   white-space: nowrap;
 }
-.time-end {
+.time-dur {
   margin-left: auto;
   color: var(--accent);
   font-weight: 600;
 }
-.time-end:empty {
+.time-dur:empty {
   display: none;
+}
+
+/* ---------- Feedback card (stars), asked once ---------- */
+.feedback-overlay[hidden] {
+  display: none;
+}
+.feedback-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(28, 24, 20, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.feedback-card {
+  width: min(100%, 400px);
+  margin: 0;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25);
+}
+.feedback-card h2 {
+  margin-bottom: 6px;
+}
+.feedback-stars {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+.feedback-star {
+  flex: 1;
+  min-height: 48px;
+  padding: 0;
+  background: #fff;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.feedback-star.is-on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, #fff);
+}
+.feedback-card textarea {
+  margin-top: 10px;
+}
+.feedback-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.feedback-actions .primary,
+.feedback-actions .plan-btn {
+  flex: 1;
+  margin-top: 0;
+  min-height: 44px;
+  justify-content: center;
 }
 
 /* ---------- Tooltips for icon-only controls ---------- */
