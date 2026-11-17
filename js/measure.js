@@ -21,8 +21,10 @@ import {
   addDays,
   canGoNext,
   canGoPrev,
+  growthTimeline,
   MILESTONES,
   mindloopScore,
+  patternCoach,
   mondayOf,
   shiftWeek,
   streakHistory,
@@ -292,6 +294,105 @@ function renderConsistency() {
   );
 }
 
+/* ---------- Pattern coach (spec §7) ---------- */
+
+function buildCoachCard() {
+  const card = el("div", "card");
+  card.id = "coach-card";
+
+  const body = el("div");
+  body.id = "coach-body";
+
+  card.append(
+    el("h2", null, "Pattern coach"),
+    el(
+      "p",
+      "hint",
+      "Built only from your own last 4 weeks of answers. It names a pattern only when several records agree, and it never guesses.",
+    ),
+    body,
+  );
+  return card;
+}
+
+function renderCoach() {
+  const body = document.getElementById("coach-body");
+  if (!body) return;
+
+  const coach = patternCoach(getEntriesLocal(), todayKey(), new Date());
+  if (!coach.ready) {
+    body.replaceChildren(el("p", null, coach.focus));
+    return;
+  }
+
+  const parts = [];
+  if (coach.observations.length === 0) {
+    parts.push(
+      el(
+        "p",
+        "hint",
+        "No pattern is strong enough to name yet. Keep planning with start times and it will speak up.",
+      ),
+    );
+  } else {
+    const list = el("ul", "coach-list");
+    for (const text of coach.observations) list.append(el("li", null, text));
+    parts.push(list);
+  }
+
+  const focus = el("div", "coach-focus");
+  focus.append(el("h3", null, "One thing to try"), el("p", null, coach.focus));
+  parts.push(focus);
+
+  body.replaceChildren(...parts);
+}
+
+/* ---------- Growth timeline (spec §13) ---------- */
+
+function buildTimelineCard() {
+  const card = el("div", "card");
+  card.id = "timeline-card";
+
+  const body = el("div");
+  body.id = "timeline-body";
+
+  card.append(
+    el("h2", null, "Growth timeline"),
+    el(
+      "p",
+      "hint",
+      "Real moments from your history, newest first. Nothing here is written by hand.",
+    ),
+    body,
+  );
+  return card;
+}
+
+function renderTimeline() {
+  const body = document.getElementById("timeline-body");
+  if (!body) return;
+
+  const { events } = growthTimeline(getEntriesLocal(), todayKey(), new Date());
+  if (events.length === 0) {
+    body.replaceChildren(
+      el("p", "hint", "Your timeline starts with your first review tonight."),
+    );
+    return;
+  }
+
+  const list = el("ol", "timeline");
+  for (const event of events) {
+    const item = el("li", "timeline-item");
+    item.append(
+      el("span", "timeline-date", fmtDay(event.date)),
+      el("span", "timeline-title", event.title),
+      el("span", "timeline-note", event.note),
+    );
+    list.append(item);
+  }
+  body.replaceChildren(list);
+}
+
 /* ---------- Weekly report ---------- */
 
 function buildReportCard() {
@@ -539,6 +640,43 @@ function initStyle() {
     .report-experiment h3 { margin: 0 0 6px; }
     .report-experiment p { margin: 0; }
     .report-next-hint { margin-top: 14px; }
+    #coach-card { border-color: var(--accent); }
+    .coach-list { margin: 8px 0 0; padding-left: 20px; }
+    .coach-list li { margin: 8px 0; }
+    .coach-focus {
+      margin-top: 14px;
+      padding: 10px 12px;
+      background: var(--surface-alt);
+      border-radius: 8px;
+    }
+    .coach-focus h3 { margin: 0 0 4px; font-size: 0.95rem; }
+    .coach-focus p { margin: 0; }
+    .timeline {
+      list-style: none;
+      margin: 10px 0 0;
+      padding: 0 0 0 14px;
+      border-left: 2px solid var(--line);
+    }
+    .timeline-item {
+      position: relative;
+      display: grid;
+      gap: 2px;
+      padding: 0 0 16px 10px;
+    }
+    .timeline-item:last-child { padding-bottom: 0; }
+    .timeline-item::before {
+      content: "";
+      position: absolute;
+      left: -21px;
+      top: 7px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .timeline-date { color: var(--muted); font-size: 0.78rem; }
+    .timeline-title { font-weight: 600; }
+    .timeline-note { color: var(--muted); font-size: 0.88rem; }
   `;
   document.head.append(style);
 }
@@ -548,6 +686,8 @@ function initStyle() {
 function renderAll() {
   renderScore();
   renderConsistency();
+  renderCoach();
+  renderTimeline();
   renderReport();
 }
 
@@ -581,6 +721,8 @@ function init() {
   view.replaceChildren(
     buildScoreCard(),
     buildConsistencyCard(),
+    buildCoachCard(),
+    buildTimelineCard(),
     buildReportCard(),
   );
   initReportNav();

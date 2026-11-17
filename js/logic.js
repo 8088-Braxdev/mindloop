@@ -789,3 +789,177 @@ export function weeklyReport(entries, weekStart, now = new Date()) {
     experiment: weeklyExperiment(stats),
   };
 }
+
+/* ---------- Spec §7: a coach that speaks only from your records ---------- */
+
+// Every line below is counted from the last `size` days of recorded answers.
+// When the records are too thin, the coach says so instead of inventing a
+// pattern, and it never mentions anything the person did not record.
+export function patternCoach(entries, todayKey, now = new Date(), size = 28) {
+  const w = windowStats(entries, todayKey, size, now);
+  const observations = [];
+
+  if (w.plannedDays < 5) {
+    return {
+      ready: false,
+      window: w,
+      observations: [],
+      focus:
+        "Plan a few more days with a start time. The coach only speaks from your own records.",
+    };
+  }
+
+  // Weekdays need at least three priorities each before a comparison is fair.
+  const withDue = w.days.filter((d) => !d.isFuture && d.due >= 3);
+  if (withDue.length >= 5) {
+    const best = withDue.reduce((top, d) =>
+      d.done / d.due > top.done / top.due ? d : top,
+    );
+    const worst = withDue.reduce((low, d) =>
+      d.done / d.due < low.done / low.due ? d : low,
+    );
+    const bestRate = Math.round((best.done / best.due) * 100);
+    const worstRate = Math.round((worst.done / worst.due) * 100);
+
+    if (bestRate >= 60) {
+      observations.push(
+        `You finished ${best.done} of ${best.due} priorities on ${best.weekday}s — your strongest weekday in the last ${size} days.`,
+      );
+    }
+    if (worstRate <= 40 && worst.date !== best.date) {
+      observations.push(
+        `${worst.weekday}s are the hard one: ${worst.done} of ${worst.due} done. A lighter plan that day is honest, not a failure.`,
+      );
+    }
+  }
+
+  // Is the gap in starting, or in finishing?
+  if (w.due >= 6 && w.startRate !== null) {
+    if (w.startRate <= 50) {
+      observations.push(
+        `You began ${w.begun} of ${w.due} planned priorities. The gap is in starting, not in what you are able to finish.`,
+      );
+    } else if (w.doneRate !== null && w.doneRate + 15 < w.startRate) {
+      observations.push(
+        `You started ${w.begun} of ${w.due} but finished ${w.done}. Starting works; the day pulls you away afterwards.`,
+      );
+    }
+  }
+
+  // Are the planned times realistic?
+  if (w.started >= 4 && w.onTimeRate !== null) {
+    if (w.onTimeRate >= 70) {
+      observations.push(
+        `${w.onTime} of ${w.started} starts happened within 10 minutes of the time you planned. Your times are realistic.`,
+      );
+    } else if (w.onTimeRate <= 40) {
+      observations.push(
+        `Only ${w.onTime} of ${w.started} starts landed within 10 minutes of the planned time. The times may be earlier than your real day.`,
+      );
+    }
+  }
+
+  if (w.postponed >= 3) {
+    observations.push(
+      `You moved ${w.postponed} priorities to another day. A move is a plan change, not a missed task.`,
+    );
+  }
+
+  if (w.reflectionRate !== null && w.reflectionRate < 50) {
+    observations.push(
+      `You reviewed ${w.reviewDays} of ${w.elapsedDays} days. The nights you write are the ones the coach can read.`,
+    );
+  }
+
+  // Ready, but nothing strong enough to claim: say the plain fact instead of
+  // inventing a pattern.
+  if (observations.length === 0 && w.due > 0) {
+    observations.push(
+      `You finished ${w.done} of ${w.due} planned priorities in the last ${size} days. No stronger pattern has formed yet, and the coach will not invent one.`,
+    );
+  }
+
+  return {
+    ready: true,
+    window: w,
+    observations: observations.slice(0, 3),
+    focus: weeklyExperiment(w),
+  };
+}
+
+/* ---------- Spec §13: growth timeline ---------- */
+
+// Real events only, each with the date it actually happened, newest first.
+// Nothing is written by hand and nothing is awarded twice.
+export function growthTimeline(entries, todayKey, now = new Date()) {
+  const first = firstEntryDate(entries);
+  if (!first) return { events: [], first: null };
+
+  const events = [
+    {
+      date: first,
+      title: "First review written",
+      note: "The night the loop started.",
+    },
+  ];
+
+  // Streak milestones, dated on the night each run reached them.
+  const filled = [...new Set(entries.map((e) => e.date))].sort();
+  let run = 0;
+  let previous = null;
+  const reached = new Set();
+  for (const key of filled) {
+    run = previous && addDays(previous, 1) === key ? run + 1 : 1;
+    for (const milestone of MILESTONES) {
+      if (run >= milestone && !reached.has(milestone)) {
+        reached.add(milestone);
+        events.push({
+          date: key,
+          title: `${milestone}-day streak`,
+          note: `${milestone} review nights in a row.`,
+        });
+      }
+    }
+    previous = key;
+  }
+
+  // Day-level history from the first review to today, so plans are read from
+  // the night before, exactly like the rest of the app.
+  const days = [];
+  let cursor = first;
+  while (cursor <= todayKey) {
+    days.push(dayStats(entries, cursor, now));
+    cursor = addDays(cursor, 1);
+  }
+
+  const firstPerfect = days.find((d) => d.due > 0 && d.done === d.due);
+  if (firstPerfect) {
+    events.push({
+      date: firstPerfect.date,
+      title: "Every priority done in one day",
+      note: `${firstPerfect.done} of ${firstPerfect.due} — the first time it happened.`,
+    });
+  }
+
+  const weeks = new Map();
+  for (const day of days) {
+    const start = mondayOf(day.date);
+    const week = weeks.get(start) || { start, done: 0, due: 0 };
+    week.done += day.done;
+    week.due += day.due;
+    weeks.set(start, week);
+  }
+  const bestWeek = [...weeks.values()].sort(
+    (a, b) => b.done - a.done || a.start.localeCompare(b.start),
+  )[0];
+  if (bestWeek && bestWeek.done >= 3) {
+    events.push({
+      date: bestWeek.start,
+      title: "Your best week so far",
+      note: `${bestWeek.done} of ${bestWeek.due} priorities done (${weekRangeLabel(bestWeek.start)}).`,
+    });
+  }
+
+  events.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  return { events, first };
+}
