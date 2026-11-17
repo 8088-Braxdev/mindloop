@@ -61,6 +61,7 @@ let hasToday = false; // review ya leo imeshasaviwa
 
 function clearForm() {
   $("review-form").reset();
+  syncAllEndTimes();
 }
 // Saved tonight and not editing: hide priority inputs, show the shield.
 function syncPriorityMode() {
@@ -118,6 +119,39 @@ async function answer(sourceDate, index, field) {
 const $ = (id) => document.getElementById(id);
 const todayKey = () => toDateKey(new Date());
 
+// The start time and the expected minutes are one group. When both are set,
+// show the finish time so the plan reads like a real time block.
+function syncEndTime(n) {
+  const end = $(`end${n}`);
+  if (!end) return;
+  const time = $(`t${n}`).value;
+  const minutes = Number($(`d${n}`).value);
+  if (!time || !Number.isFinite(minutes) || minutes < 1) {
+    end.textContent = "";
+    return;
+  }
+  const [h, m] = time.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) {
+    end.textContent = "";
+    return;
+  }
+  const total = (h * 60 + m + minutes) % (24 * 60);
+  const hh = String(Math.floor(total / 60)).padStart(2, "0");
+  const mm = String(total % 60).padStart(2, "0");
+  end.textContent = `→ ${hh}:${mm}`;
+}
+
+function syncAllEndTimes() {
+  for (const n of [1, 2, 3]) syncEndTime(n);
+}
+
+function initPriorityTimes() {
+  for (const n of [1, 2, 3]) {
+    $(`t${n}`)?.addEventListener("input", () => syncEndTime(n));
+    $(`d${n}`)?.addEventListener("input", () => syncEndTime(n));
+  }
+}
+
 // Part 2 fills this: onViewShow.week = renderWeek
 const onViewShow = {};
 
@@ -130,6 +164,7 @@ function showView(name) {
   document.querySelectorAll(".view").forEach((view) => {
     view.hidden = view.id !== `view-${name}`;
   });
+  window.scrollTo({ top: 0, left: 0 });
   if (onViewShow[name]) onViewShow[name]();
 }
 
@@ -166,7 +201,10 @@ function planButton(iconId, label, onClick) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "plan-btn";
-  btn.innerHTML = `<svg class="icon"><use href="#${iconId}"/></svg><span>${label}</span>`;
+  btn.setAttribute("aria-label", label);
+  // The label is hidden on small screens; data-tip shows it on hover/focus.
+  btn.dataset.tip = label;
+  btn.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg><span class="btn-label">${label}</span>`;
   btn.addEventListener("click", onClick);
   return btn;
 }
@@ -602,6 +640,7 @@ function fillForm(entry) {
     $(`t${i + 1}`).value = p.time || "";
     $(`d${i + 1}`).value = p.duration || "";
   });
+  syncAllEndTimes();
 }
 
 async function onSubmit(event) {
@@ -821,6 +860,12 @@ const TOUR_STEPS = [
     text: "After saving, tomorrow's plan waits here with a countdown. When the new day starts, the review resets and stays locked until you mark all 3 priorities Done or Not done. Be honest, it's only for you.",
   },
   {
+    view: "today",
+    target: "tabbar",
+    title: "Swipe between tabs",
+    text: "Tap a tab, or swipe left and right anywhere on the page. The bar stays at the bottom, so Today, Week, Progress and Account are always within reach.",
+  },
+  {
     view: "week",
     target: "week-stats",
     title: "Your Week",
@@ -863,7 +908,9 @@ function markTourSeen() {
   if (key) localStorage.setItem(key, "1");
 }
 
-const isVisible = (el) => !!el && el.offsetParent !== null;
+const isVisible = (el) =>
+  !!el &&
+  (el.offsetParent !== null || getComputedStyle(el).position === "fixed");
 
 function endTour() {
   $("tour-tooltip").hidden = true;
@@ -891,7 +938,9 @@ function showTourStep(index) {
       .querySelectorAll(".tour-target")
       .forEach((el) => el.classList.remove("tour-target"));
     target.classList.add("tour-target");
-    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (getComputedStyle(target).position !== "fixed") {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
 
     tourIndex = index;
     $("tour-title").textContent = step.title;
@@ -1141,6 +1190,7 @@ async function init() {
   initTabs();
   initTour();
   initWeekNav();
+  initPriorityTimes();
 
   // Use optional chaining (?.) to safely call addEventListener only if the element exists
   $("review-form")?.addEventListener("submit", onSubmit);

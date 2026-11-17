@@ -1,6 +1,7 @@
-const MIN_DISTANCE = 70;
+const MIN_DISTANCE = 56;
 const EDGE_GUARD = 24;
-const LOCK_DISTANCE = 10;
+const LOCK_DISTANCE = 8;
+const FLICK_SPEED = 0.35; // px per ms
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 let startX = 0;
@@ -59,13 +60,14 @@ async function slideSwitch(step, next) {
   const el = panel;
   const w = window.innerWidth;
   busy = true;
+  navigator.vibrate?.(6);
   const cs = getComputedStyle(el);
   const out = el.animate(
     [
       { transform: cs.transform, opacity: cs.opacity },
       { transform: `translateX(${-step * w}px)`, opacity: 0 },
     ],
-    { duration: 140, easing: 'ease-in', fill: 'forwards' }
+    { duration: 150, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'forwards' }
   );
   await out.finished;
 
@@ -79,14 +81,16 @@ async function slideSwitch(step, next) {
     busy = false;
     return endDrag();
   }
+  incoming.style.willChange = 'transform, opacity';
   const anim = incoming.animate(
     [
-      { transform: `translateX(${step * w}px)`, opacity: 0 },
+      { transform: `translateX(${step * w * 0.45}px)`, opacity: 0.35 },
       { transform: 'translateX(0)', opacity: 1 },
     ],
-    { duration: 210, easing: 'cubic-bezier(.2,.8,.2,1)' }
+    { duration: 190, easing: 'cubic-bezier(.2,.8,.2,1)' }
   );
   anim.onfinish = () => {
+    clear(incoming);
     busy = false;
     endDrag();
   };
@@ -103,7 +107,7 @@ document.addEventListener(
       !app || app.hidden ||
       (tour && !tour.hidden) ||
       e.touches.length !== 1 ||
-      e.target.closest('input, textarea, select') ||
+      e.target.closest('input, textarea, select, .tabs, .tour-tooltip') ||
       inHorizontalScroller(e.target) ||
       t.clientX < EDGE_GUARD ||
       t.clientX > window.innerWidth - EDGE_GUARD;
@@ -145,9 +149,10 @@ document.addEventListener(
 
     const idx = activeIndex();
     const atEdge = (dx > 0 && idx === 0) || (dx < 0 && idx === tabs().length - 1);
-    const offset = atEdge ? dx * 0.25 : dx;
+    const offset = atEdge ? dx * 0.2 : dx;
+    const progress = Math.min(Math.abs(offset) / (window.innerWidth * 0.9), 1);
     panel.style.transform = `translateX(${offset}px)`;
-    panel.style.opacity = String(1 - Math.min(Math.abs(offset) / (window.innerWidth * 1.5), 0.35));
+    panel.style.opacity = String(1 - progress * 0.2);
   },
   { passive: true }
 );
@@ -164,7 +169,7 @@ document.addEventListener(
     const dt = Math.max(e.timeStamp - startT, 1);
     const step = dx < 0 ? 1 : -1;
     const next = tabs()[activeIndex() + step];
-    const fast = Math.abs(dx) > 30 && Math.abs(dx) / dt > 0.5;
+    const fast = Math.abs(dx) > 30 && Math.abs(dx) / dt > FLICK_SPEED;
     const passed = Math.abs(dx) >= MIN_DISTANCE || fast;
 
     if (!next || !passed) return springBack();

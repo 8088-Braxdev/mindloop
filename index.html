@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>MindLoop: A calm nightly review and daily plan</title>
     <meta name="description"
         content="MindLoop is a nightly review. Note your wins and challenges, plan tomorrow's three priorities with start times, and keep your streak.">
@@ -55,6 +55,15 @@
                 <circle cx="12" cy="12" r="10" />
                 <circle cx="12" cy="12" r="6" />
                 <circle cx="12" cy="12" r="2" />
+            </symbol>
+            <symbol id="i-calendar" viewBox="0 0 24 24">
+                <rect x="3" y="5" width="18" height="16" rx="2" />
+                <path d="M8 3v4M16 3v4M3 10h18" />
+            </symbol>
+            <symbol id="i-help" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.1 9a3 3 0 1 1 4.6 2.5c-.9.6-1.7 1.2-1.7 2.5" />
+                <path d="M12 17h.01" />
             </symbol>
             <symbol id="i-play" viewBox="0 0 24 24">
                 <polygon points="6 3 20 12 6 21 6 3" />
@@ -136,26 +145,26 @@
         </header>
         <p id="sync-status" class="status" role="status" hidden></p>
 
-        <nav class="tabs">
-            <button class="tab is-active" data-view="today">
+        <nav class="tabs" id="tabbar" aria-label="Main">
+            <button class="tab is-active" data-view="today" data-tip="Today" aria-label="Today">
                 <svg class="icon">
                     <use href="#i-sun" />
                 </svg>
                 <span>Today</span>
             </button>
-            <button class="tab" data-view="week">
+            <button class="tab" data-view="week" data-tip="Week" aria-label="Week">
                 <svg class="icon">
                     <use href="#i-chart" />
                 </svg>
                 <span>Week</span>
             </button>
-            <button class="tab" data-view="progress">
+            <button class="tab" data-view="progress" data-tip="Progress" aria-label="Progress">
                 <svg class="icon">
                     <use href="#i-target" />
                 </svg>
                 <span>Progress</span>
             </button>
-            <button class="tab" data-view="account">
+            <button class="tab" data-view="account" data-tip="Account" aria-label="Account">
                 <svg class="icon">
                     <use href="#i-user" />
                 </svg>
@@ -215,8 +224,9 @@
                             <textarea id="lessons" rows="2"></textarea>
 
                             <h3 class="priority-head">Tomorrow's 3 priorities</h3>
-                            <p class="hint priority-head">Write the task, the time you will start it, and optionally how
-                                long you expect it to take. The time is optional too.</p>
+                            <p class="hint priority-head">Write the task and the time you will start it. Add how long you
+                                expect it to take, and the finish time appears next to it. Both are optional — MindLoop
+                                reminds you at the start time, using the reminder settings in Account.</p>
                             <p class="hint priority-head">
                                 Write carefully. Once you save, these priorities are locked and can't be changed. You
                                 can still edit your review.
@@ -224,23 +234,50 @@
                             <div class="priority-row">
                                 <input id="p1" type="text" maxlength="120" placeholder="Priority 1"
                                     aria-label="Priority 1">
-                                <input id="t1" type="time" aria-label="Start time for priority 1">
-                                <input id="d1" type="number" min="1" max="600" step="1" inputmode="numeric"
-                                    placeholder="Min" aria-label="Estimated minutes for priority 1">
+                                <div class="time-fields">
+                                    <svg class="icon" aria-hidden="true">
+                                        <use href="#i-clock" />
+                                    </svg>
+                                    <input id="t1" type="time" aria-label="Start time for priority 1">
+                                    <span class="time-for" aria-hidden="true">for</span>
+                                    <input id="d1" type="number" min="1" max="600" step="1" inputmode="numeric"
+                                        placeholder="0" aria-label="Estimated minutes for priority 1"
+                                        title="How long it will take, in minutes (optional)">
+                                    <span class="time-unit" aria-hidden="true">min</span>
+                                    <span id="end1" class="time-end"></span>
+                                </div>
                             </div>
                             <div class="priority-row">
                                 <input id="p2" type="text" maxlength="120" placeholder="Priority 2"
                                     aria-label="Priority 2">
-                                <input id="t2" type="time" aria-label="Start time for priority 2">
-                                <input id="d2" type="number" min="1" max="600" step="1" inputmode="numeric"
-                                    placeholder="Min" aria-label="Estimated minutes for priority 2">
+                                <div class="time-fields">
+                                    <svg class="icon" aria-hidden="true">
+                                        <use href="#i-clock" />
+                                    </svg>
+                                    <input id="t2" type="time" aria-label="Start time for priority 2">
+                                    <span class="time-for" aria-hidden="true">for</span>
+                                    <input id="d2" type="number" min="1" max="600" step="1" inputmode="numeric"
+                                        placeholder="0" aria-label="Estimated minutes for priority 2"
+                                        title="How long it will take, in minutes (optional)">
+                                    <span class="time-unit" aria-hidden="true">min</span>
+                                    <span id="end2" class="time-end"></span>
+                                </div>
                             </div>
                             <div class="priority-row">
                                 <input id="p3" type="text" maxlength="120" placeholder="Priority 3"
                                     aria-label="Priority 3">
-                                <input id="t3" type="time" aria-label="Start time for priority 3">
-                                <input id="d3" type="number" min="1" max="600" step="1" inputmode="numeric"
-                                    placeholder="Min" aria-label="Estimated minutes for priority 3">
+                                <div class="time-fields">
+                                    <svg class="icon" aria-hidden="true">
+                                        <use href="#i-clock" />
+                                    </svg>
+                                    <input id="t3" type="time" aria-label="Start time for priority 3">
+                                    <span class="time-for" aria-hidden="true">for</span>
+                                    <input id="d3" type="number" min="1" max="600" step="1" inputmode="numeric"
+                                        placeholder="0" aria-label="Estimated minutes for priority 3"
+                                        title="How long it will take, in minutes (optional)">
+                                    <span class="time-unit" aria-hidden="true">min</span>
+                                    <span id="end3" class="time-end"></span>
+                                </div>
                             </div>
 
                             <button type="submit" class="primary">Save review</button>
@@ -336,14 +373,9 @@
                         <button id="tour-help" class="plan-btn" type="button">Show app tour</button>
                     </div>
                     <h3>Insight language</h3>
-                    <p class="hint">The language new AI insights are written in. Your reviews and past insights are
-                        never translated or changed.</p>
-                    <select id="insight-language" aria-label="Preferred insight language">
-                        <option value="auto">Automatic — match my reviews</option>
-                        <option value="en">English</option>
-                        <option value="sw">Kiswahili</option>
-                    </select>
-                    <p id="language-status" class="status" role="status"></p>
+                    <p class="hint">Automatic. New AI insights are written in the language your reviews are written
+                        in, so there is nothing to set up. Your reviews and past insights are never translated or
+                        changed.</p>
                     <div class="data-footer">
                         <a href="https://wa.me/255618811359" target="_blank" rel="noopener" class="whatsapp-btn">
                             <svg class="icon">
