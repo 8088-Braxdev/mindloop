@@ -4,6 +4,8 @@
 // What this IS: when a priority's start time arrives, a reminder card appears
 // at the top of Today, and — if the person allowed notifications — a device
 // notification with the same words. One reminder per priority, no follow-ups.
+// Permission is asked once, by the app itself, when the first tour ends
+// (see js/notify.js); there is no button to hunt down for it.
 //
 // What this is NOT: a guaranteed closed-app push notification. Web push while
 // the app is closed needs a server-side push subscription and scheduler,
@@ -21,6 +23,7 @@ import {
 } from "./storage.js";
 import { getCardPlan, toDateKey } from "./logic.js";
 import { cachedUserId } from "./auth.js";
+import { notificationState, askOnFirstTap } from "./notify.js";
 
 const TICK_MS = 30000; // check every 30 seconds
 const REMINDER_KEY = "mindloop:reminders";
@@ -105,11 +108,6 @@ function needsReminder(item, planDate, now, leadMin = 0) {
 
 /* ---------- Device notifications ---------- */
 
-function notificationState() {
-  if (typeof Notification === "undefined") return "unsupported";
-  return Notification.permission; // "default" | "granted" | "denied"
-}
-
 // The same reminder, delivered to the phone's notification tray. This is a
 // local notification: nothing is sent anywhere, and it only exists while the
 // app is running. The service worker shows it when the browser supports that
@@ -136,21 +134,16 @@ async function showDeviceNotification(title, body, tag) {
   }
 }
 
-function buildNotificationControl() {
-  const wrap = document.createDocumentFragment();
-
-  const button = document.createElement("button");
-  button.type = "button";
-  button.id = "reminder-permission";
-  button.className = "plan-btn";
-
+// No "turn on notifications" button: the app asks once by itself, when the
+// first tour ends. This line only says where the permission stands, because a
+// blocked permission has to be changed in the browser, not in the app.
+function buildNotificationStatus() {
   const status = document.createElement("p");
   status.className = "hint";
   status.id = "reminder-permission-status";
 
   const paint = () => {
     const state = notificationState();
-    button.hidden = state !== "default";
     if (state === "granted") {
       status.textContent =
         "Notifications are on. Each reminder also appears in your phone's notification tray while MindLoop is open.";
@@ -161,23 +154,16 @@ function buildNotificationControl() {
       status.textContent =
         "This browser does not support notifications. The reminder card still appears inside the app.";
     } else {
-      status.textContent = "";
+      status.textContent =
+        "MindLoop asks for notification permission once, when the tour ends. Reminders still appear inside the app without it, and you can allow notifications any time in your browser's site settings.";
     }
   };
 
-  button.textContent = "Turn on notifications";
-  button.addEventListener("click", async () => {
-    try {
-      await Notification.requestPermission();
-    } catch (err) {
-      console.warn("MindLoop: notification permission failed", err);
-    }
-    paint();
-  });
-
   paint();
-  wrap.append(button, status);
-  return wrap;
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) paint();
+  });
+  return status;
 }
 
 /* ---------- DOM the module owns ---------- */
@@ -244,7 +230,7 @@ function buildSettings() {
   scope.textContent =
     "This applies to every priority with a start time. Closed-app notifications need a push server and arrive in a later update — MindLoop will never claim guaranteed delivery.";
 
-  wrap.append(head, hint, leadLabel, lead, buildNotificationControl(), scope);
+  wrap.append(head, hint, leadLabel, lead, buildNotificationStatus(), scope);
   return wrap;
 }
 
@@ -476,6 +462,10 @@ function initReminders() {
       ? accountCard.insertBefore(settings, footer)
       : accountCard.append(settings);
   }
+
+  // Older accounts finished the tour before the app started asking; their next
+  // real tap brings the prompt once.
+  askOnFirstTap();
 
   renderReminders();
   if (timer) clearInterval(timer);

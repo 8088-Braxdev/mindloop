@@ -53,6 +53,7 @@ import {
   InsightError,
   deleteInsight,
 } from "./insights.js";
+import { askNotificationPermission } from "./notify.js";
 
 let currentWeek = mondayOf(toDateKey(new Date()));
 let editing = false; // true = fomu ina review ya leo, inaeditiwa
@@ -926,6 +927,9 @@ function endTour() {
     .querySelectorAll(".tour-target")
     .forEach((el) => el.classList.remove("tour-target"));
   markTourSeen();
+  // The tour has just been finished (or skipped) with a tap, which is the
+  // moment big apps ask for notifications. Asked once in total.
+  askNotificationPermission();
 }
 
 function showTourStep(index) {
