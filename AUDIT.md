@@ -22,17 +22,17 @@ were **not** inspected from here and are marked for investigation.
 | §5 Push while the app is closed, quiet hours, notification permission | Partial | Permission is asked once by the app itself when the first tour ends (`js/notify.js`), with no button in Account. Quiet hours are in Account and silence device notifications only (`inQuietHours` in `js/reminders.js`). Closed-app push still needs a push subscription and a server scheduler |
 | §6 Rescue Mode | Existing | `js/rescue.js`; opening it never completes a task |
 | §7 Personal Pattern Coach | Added in this change | `patternCoach` in `js/logic.js` reads the last 28 days, names at most three counted patterns, and refuses to guess on thin data; card in `js/measure.js` |
-| §8 Adaptive Daily Plan (energy level) | Not implemented | — |
+| §8 Adaptive Daily Plan (energy level) | Added in this change | Low / Normal / High choice in the night review with a suggested number of priorities (`energyPlan` in `js/logic.js`); advice only — nothing is blocked, hidden or filled in |
 | §9 MindLoop Score with documented rules | Added in this change | `js/logic.js`, `js/measure.js`, `METRICS.md` |
 | §10 Consistency tracker (7 and 30 days) | Added in this change | `windowStats` |
 | §11 Streaks and milestones | Partial before, extended here | Streak existed; milestones 3/7/14/30 added and never erased |
 | §12 Weekly report | Partial before, extended here | Stats and AI insight existed; comparison, patterns, one experiment added |
 | §13 Growth Timeline | Added in this change | `growthTimeline` in `js/logic.js` dates the first review, each streak milestone, the first perfect day and the best week; card in `js/measure.js` |
-| §14 Talk to Your Progress | Not implemented | — |
+| §14 Talk to Your Progress | Added in this change | "Ask your progress" card in `js/measure.js`, answered by `progressAnswers` in `js/logic.js` from recorded data only (no AI call, no invented number) |
 | §16 RLS on every user-owned table | Needs investigation | Policies live in Supabase, not in this repository |
 | §16 Deletes rely on RLS rather than an explicit user filter | Needs investigation | `clearAll` and `deleteInsight` filter by date/period only; this is safe only if RLS is correct |
 | §16 AI keys server-side, bearer auth, rate limits | Existing | `api/insight.js` reads `GROQ_API_KEY`; Supabase RLS for reads |
-| §17 Mobile, keyboard, loading/offline states | Partial | Controls are 44px+; offline/sync states exist; no dedicated screen-reader or keyboard audit |
+| §17 Mobile, keyboard, loading/offline states | Partial, improved | 44px+ controls and offline/sync states already existed; visible focus rings, `prefers-reduced-motion` support and arrow-key navigation for the tab bar were added. A full screen-reader pass still needs a person using a screen reader |
 
 ## Notes for the next phase
 

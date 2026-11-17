@@ -223,6 +223,17 @@
                             <label for="lessons">What did I learn?</label>
                             <textarea id="lessons" rows="2"></textarea>
 
+                            <div class="energy-block">
+                                <p class="energy-label" id="energy-label">Energy for tomorrow</p>
+                                <div class="energy-choices" role="group" aria-labelledby="energy-label">
+                                    <button type="button" class="energy-btn" data-energy="low">Low</button>
+                                    <button type="button" class="energy-btn is-active" data-energy="normal"
+                                        aria-pressed="true">Normal</button>
+                                    <button type="button" class="energy-btn" data-energy="high">High</button>
+                                </div>
+                                <p class="hint" id="energy-hint" aria-live="polite"></p>
+                            </div>
+
                             <h3 class="priority-head">Tomorrow's 3 priorities</h3>
                             <p class="hint priority-head">Write the task, the time you will start it, and the time you
                                 expect to finish. Both times are optional — MindLoop reminds you at the start time,

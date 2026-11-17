@@ -887,6 +887,82 @@ export function patternCoach(entries, todayKey, now = new Date(), size = 28) {
   };
 }
 
+/* ---------- Spec §8: the plan follows tomorrow's energy ---------- */
+
+export const ENERGY_LEVELS = ["low", "normal", "high"];
+
+// The plan adapts to the energy the person expects tomorrow. It only advises:
+// nothing is blocked, hidden or filled in for them.
+export function energyPlan(level = "normal") {
+  const plans = {
+    low: {
+      level: "low",
+      suggested: 1,
+      message:
+        "Low energy: one priority is a full plan tomorrow. Pick the smallest useful one.",
+    },
+    normal: {
+      level: "normal",
+      suggested: 2,
+      message:
+        "Normal energy: two priorities leaves room for the day to happen.",
+    },
+    high: {
+      level: "high",
+      suggested: 3,
+      message:
+        "High energy: three priorities, and a start time for each one.",
+    },
+  };
+  return plans[level] || plans.normal;
+}
+
+/* ---------- Spec §14: answers about your own progress ---------- */
+
+// Questions people actually ask themselves, answered only from recorded data.
+// No AI call, and no number that is not counted from the person's own answers.
+export function progressAnswers(entries, now = new Date()) {
+  const today = toDateKey(now);
+  const week = weeklyReport(entries, mondayOf(today), now);
+  const coach = patternCoach(entries, today, now);
+  const streak = streakHistory(entries, today);
+
+  const weekAnswer =
+    week.due === 0
+      ? `No priorities have come due in week ${week.number} yet. Tonight's plan is what starts it.`
+      : `Week ${week.number}: ${week.done} of ${week.due} priorities done (${week.completionRate}%), ${week.begun} begun. ${
+          week.comparison
+            ? `Last week you finished ${week.comparison.previousDoneRate}%.`
+            : "No full week to compare with yet."
+        }`;
+
+  const blocker = week.blockers[0];
+  const blockerAnswer = blocker
+    ? `${blocker.label} is the main blocker, chosen on ${blocker.count} night${blocker.count === 1 ? "" : "s"} this week.`
+    : "No blocker has been logged this week. The main reason in your review is what fills this in.";
+
+  const streakAnswer =
+    streak.best === 0
+      ? "No reviews yet. The first one tonight starts the record."
+      : `Current streak ${streak.current} day${streak.current === 1 ? "" : "s"}, best ${streak.best}. ${
+          streak.next
+            ? `${streak.next - streak.best} more night${streak.next - streak.best === 1 ? "" : "s"} to the ${streak.next}-day milestone.`
+            : "Every milestone reached."
+        }`;
+
+  return [
+    { id: "week", question: "How is this week going?", answer: weekAnswer },
+    {
+      id: "start",
+      question: "When do I start best?",
+      answer: coach.observations[0] || coach.focus,
+    },
+    { id: "blocker", question: "What is in the way?", answer: blockerAnswer },
+    { id: "streak", question: "How consistent am I?", answer: streakAnswer },
+    { id: "next", question: "What should I try next?", answer: week.experiment },
+  ];
+}
+
 /* ---------- Spec §13: growth timeline ---------- */
 
 // Real events only, each with the date it actually happened, newest first.

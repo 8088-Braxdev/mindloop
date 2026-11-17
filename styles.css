@@ -726,6 +726,57 @@ input[type="number"]:focus {
 .brand-logo {
   border-radius: 22%;
 }
+/* ---------- Energy for tomorrow (spec §8) ---------- */
+.energy-block {
+  margin: 4px 0 14px;
+}
+.energy-label {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.energy-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.energy-btn {
+  min-height: 44px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.9rem;
+}
+.energy-btn.is-active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--surface-alt);
+  font-weight: 600;
+}
+.energy-block .hint {
+  margin: 8px 0 0;
+}
+
+/* ---------- Keyboard and motion (spec §17) ---------- */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @media (max-width: 360px) {
   .topbar,
   .tabs,

@@ -35,6 +35,7 @@ import {
   addDays,
   plannedMinutes,
   addMinutesToTime,
+  energyPlan,
   validateReview,
   isDeleteConfirmed,
   getCardPlan,
@@ -153,6 +154,34 @@ function initPriorityTimes() {
   }
 }
 
+/* ---------- Spec §8: plan for the energy you expect ---------- */
+
+// Advice only: the person still writes every priority, and nothing is hidden
+// or blocked if they plan more than the suggestion.
+let energyLevel = "normal";
+
+function paintEnergy() {
+  document.querySelectorAll(".energy-btn").forEach((btn) => {
+    const on = btn.dataset.energy === energyLevel;
+    btn.classList.toggle("is-active", on);
+    btn.setAttribute("aria-pressed", String(on));
+  });
+  const hint = $("energy-hint");
+  if (hint) hint.textContent = energyPlan(energyLevel).message;
+}
+
+function initEnergy() {
+  document.querySelectorAll(".energy-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      energyLevel = btn.dataset.energy || "normal";
+      paintEnergy();
+    });
+  });
+  paintEnergy();
+}
+
+initEnergy();
+
 // Part 2 fills this: onViewShow.week = renderWeek
 const onViewShow = {};
 
@@ -170,8 +199,24 @@ function showView(name) {
 }
 
 function initTabs() {
-  document.querySelectorAll(".tab").forEach((tab) => {
+  const tabs = [...document.querySelectorAll(".tab")];
+  tabs.forEach((tab) => {
     tab.addEventListener("click", () => showView(tab.dataset.view));
+  });
+  // Keyboard: the tab bar is one stop, then the arrows move between views.
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("keydown", (event) => {
+      const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+      if (!keys.includes(event.key)) return;
+      event.preventDefault();
+      let next = index;
+      if (event.key === "ArrowLeft") next = (index - 1 + tabs.length) % tabs.length;
+      if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+      if (event.key === "Home") next = 0;
+      if (event.key === "End") next = tabs.length - 1;
+      tabs[next].focus();
+      showView(tabs[next].dataset.view);
+    });
   });
 }
 
