@@ -29,7 +29,9 @@ import { askStartTime } from "./timesheet.js";
 const TICK_MS = 30000; // check every 30 seconds
 const REMINDER_KEY = "mindloop:reminders";
 const LEAD_KEY = "mindloop:reminder-lead";
+const QUIET_KEY = "mindloop:quiet-hours";
 const VALID_LEAD = new Set([0, 5, 10, 15]);
+const DEFAULT_QUIET = { on: false, from: "22:00", to: "07:00" };
 
 const idOf = (sourceDate, index) => `${sourceDate}#${index}`;
 
@@ -97,6 +99,52 @@ function pruneAnswered(store, items, sourceDate) {
   if (changed) writeStore(store);
 }
 
+/* ---------- Quiet hours (spec §5) ---------- */
+
+function readQuiet() {
+  const uid = cachedUserId();
+  if (!uid) return { ...DEFAULT_QUIET };
+  try {
+    const raw = localStorage.getItem(`${QUIET_KEY}:${uid}`);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== "object") return { ...DEFAULT_QUIET };
+    return {
+      on: !!parsed.on,
+      from: parsed.from || DEFAULT_QUIET.from,
+      to: parsed.to || DEFAULT_QUIET.to,
+    };
+  } catch {
+    return { ...DEFAULT_QUIET };
+  }
+}
+
+function setQuiet(quiet) {
+  const uid = cachedUserId();
+  if (!uid) return;
+  try {
+    localStorage.setItem(`${QUIET_KEY}:${uid}`, JSON.stringify(quiet));
+  } catch {
+    // A per-device convenience; the reminder card works without it.
+  }
+}
+
+const clockMinutes = (value) => {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value || "");
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+};
+
+// Quiet hours may cross midnight, and they only silence the device: the card
+// inside the app still appears, because that is the person asking to be shown.
+function inQuietHours(now = new Date()) {
+  const quiet = readQuiet();
+  if (!quiet.on) return false;
+  const from = clockMinutes(quiet.from);
+  const to = clockMinutes(quiet.to);
+  if (from === null || to === null) return false;
+  const at = now.getHours() * 60 + now.getMinutes();
+  return from <= to ? at >= from && at < to : at >= from || at < to;
+}
+
 function needsReminder(item, planDate, now, leadMin = 0) {
   // Only items with a start time whose moment is near, still unanswered.
   if (!item.time) return false;
@@ -115,6 +163,7 @@ function needsReminder(item, planDate, now, leadMin = 0) {
 // (phones do not allow `new Notification()` from a page).
 async function showDeviceNotification(title, body, tag) {
   if (notificationState() !== "granted") return;
+  if (inQuietHours()) return; // phone stays quiet; the card still appears
   const options = {
     body,
     tag,
@@ -231,8 +280,87 @@ function buildSettings() {
   scope.textContent =
     "This applies to every priority with a start time. Closed-app notifications need a push server and arrive in a later update — MindLoop will never claim guaranteed delivery.";
 
-  wrap.append(head, hint, leadLabel, lead, buildNotificationStatus(), scope);
+  wrap.append(
+    head,
+    hint,
+    leadLabel,
+    lead,
+    buildNotificationStatus(),
+    buildQuietHours(),
+    scope,
+  );
   return wrap;
+}
+
+// Quiet hours: silence the phone, never the app.
+function buildQuietHours() {
+  const box = document.createElement("div");
+  box.className = "quiet-hours";
+
+  const head = document.createElement("h3");
+  head.textContent = "Quiet hours";
+
+  const toggle = document.createElement("label");
+  toggle.className = "quiet-toggle";
+  toggle.htmlFor = "quiet-on";
+
+  const on = document.createElement("input");
+  on.type = "checkbox";
+  on.id = "quiet-on";
+
+  const toggleText = document.createElement("span");
+  toggleText.textContent = "No device notifications during these hours";
+  toggle.append(on, toggleText);
+
+  const row = document.createElement("div");
+  row.className = "quiet-row";
+
+  const fromLabel = document.createElement("label");
+  fromLabel.htmlFor = "quiet-from";
+  fromLabel.textContent = "From";
+  const from = document.createElement("input");
+  from.type = "time";
+  from.id = "quiet-from";
+
+  const toLabel = document.createElement("label");
+  toLabel.htmlFor = "quiet-to";
+  toLabel.textContent = "to";
+  const to = document.createElement("input");
+  to.type = "time";
+  to.id = "quiet-to";
+
+  row.append(fromLabel, from, toLabel, to);
+
+  const hint = document.createElement("p");
+  hint.className = "hint";
+  hint.textContent =
+    "During these hours MindLoop keeps your phone silent but still shows the reminder inside the app. The times may cross midnight.";
+
+  const paint = () => {
+    const quiet = readQuiet();
+    on.checked = quiet.on;
+    from.value = quiet.from;
+    to.value = quiet.to;
+    from.disabled = !quiet.on;
+    to.disabled = !quiet.on;
+  };
+
+  const save = () => {
+    setQuiet({
+      on: on.checked,
+      from: from.value || DEFAULT_QUIET.from,
+      to: to.value || DEFAULT_QUIET.to,
+    });
+    paint();
+  };
+
+  on.addEventListener("change", save);
+  from.addEventListener("change", save);
+  to.addEventListener("change", save);
+
+  paint();
+  box.append(head, toggle, row, hint);
+  return box;
 }
 
 let card = null;

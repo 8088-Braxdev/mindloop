@@ -17,9 +17,9 @@ were **not** inspected from here and are marked for investigation.
 | §2 Server-side AI via Groq, caching, limits, duplicate protection | Existing | `api/insight.js` |
 | §3 Insight language | Automatic only | English/Kiswahili switch removed; `languageRule` in `api/insight.js` follows the reviews' language |
 | §4 Start time, finish time, reschedule history | Existing | `endTime` + derived `duration`; `reschedulePriority`, `rescheduled[]` |
-| §4 Description / definition of done, completion note, postponement reason, per-priority reminder | Not implemented | Only the task text, time and duration are stored |
+| §4 Description / definition of done, completion note, postponement reason, per-priority reminder | Added in this change, except per-priority reminders | One optional "Done means…" line per priority, an optional completion note after Done, and one reason when a priority is moved (`setPriorityData` in `js/storage.js`, fields inside the priorities JSON so no schema change is needed). Reminders are still one setting for all priorities |
 | §5 Reminder at the start time, snooze, start/stuck/done actions | Partial | `js/reminders.js`: in-app card plus a local device notification, no follow-up; closed-app push still needs a server |
-| §5 Push while the app is closed, quiet hours, notification permission | Partial | Permission is asked once by the app itself when the first tour ends (`js/notify.js`), with no button in Account; closed-app push and quiet hours still need a push subscription and server scheduler |
+| §5 Push while the app is closed, quiet hours, notification permission | Partial | Permission is asked once by the app itself when the first tour ends (`js/notify.js`), with no button in Account. Quiet hours are in Account and silence device notifications only (`inQuietHours` in `js/reminders.js`). Closed-app push still needs a push subscription and a server scheduler |
 | §6 Rescue Mode | Existing | `js/rescue.js`; opening it never completes a task |
 | §7 Personal Pattern Coach | Added in this change | `patternCoach` in `js/logic.js` reads the last 28 days, names at most three counted patterns, and refuses to guess on thin data; card in `js/measure.js` |
 | §8 Adaptive Daily Plan (energy level) | Not implemented | — |

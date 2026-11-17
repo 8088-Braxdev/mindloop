@@ -13,6 +13,7 @@ import {
   getEntriesLocal,
   clearPriorityStamp,
   reschedulePriority,
+  setPriorityData,
 } from "./storage.js";
 import {
   toDateKey,
@@ -54,7 +55,7 @@ import {
   deleteInsight,
 } from "./insights.js";
 import { askNotificationPermission } from "./notify.js";
-import { askStartTime } from "./timesheet.js";
+import { askNote, askReason, askStartTime } from "./timesheet.js";
 
 let currentWeek = mondayOf(toDateKey(new Date()));
 let editing = false; // true = fomu ina review ya leo, inaeditiwa
@@ -232,13 +233,58 @@ async function onChangeTime(sourceDate, index, item) {
     });
 }
 
-// Spec §4: postponing is a plan move, not a failure. Undo is honest too.
-function onPostpone(sourceDate, index) {
-  onMark(sourceDate, index, "postponedAt");
+// Spec §4: moving a task asks for a reason, once. The reason is a plan note,
+// never a judgement, and "prefer not to say" is a real answer.
+const POSTPONE_REASONS = [
+  { id: "too-big", label: "Task felt too big" },
+  { id: "no-time", label: "No time left today" },
+  { id: "energy", label: "Low energy" },
+  { id: "something", label: "Something came up" },
+  { id: "private", label: "Prefer not to say" },
+];
+const POSTPONE_REASON_LABEL = Object.fromEntries(
+  POSTPONE_REASONS.map((reason) => [reason.id, reason.label]),
+);
+
+async function onPostpone(sourceDate, index, item) {
+  const reason = await askReason({
+    title: "Moving this to another day",
+    text: item.text,
+    options: POSTPONE_REASONS,
+  });
+  if (reason === null) return; // cancelled: nothing recorded
+  try {
+    await markPriority(sourceDate, index, "postponedAt");
+    if (reason) await setPriorityData(sourceDate, index, { postponeReason: reason });
+  } catch (err) {
+    console.error("MindLoop: postpone failed", err);
+    showAppError("Could not save that. Check your connection and try again.");
+  }
+  await refresh();
+}
+
+// Done is followed by one optional note, so tomorrow-you knows how it went.
+// Closing the note sheet records nothing: the answer is still the person's.
+async function confirmDone(sourceDate, index, item) {
+  const written = await askNote({
+    title: "Done. Anything to remember?",
+    text: item.text,
+  });
+  if (written === null) return;
+  confirming.delete(index);
+  try {
+    await markPriority(sourceDate, index, "doneAt");
+    if (written) await setPriorityData(sourceDate, index, { note: written });
+  } catch (err) {
+    console.error("MindLoop: mark done failed", err);
+    showAppError("Could not save that. Check your connection and try again.");
+  }
+  await refresh();
 }
 
 function onUndoPostpone(sourceDate, index) {
   clearPriorityStamp(sourceDate, index, "postponedAt")
+    .then(() => setPriorityData(sourceDate, index, { postponeReason: null }))
     .then(() => refresh())
     .catch((err) => {
       console.error("MindLoop: undo postpone failed", err);
@@ -266,6 +312,11 @@ function buildPlanItem(item, sourceDate, planDate) {
   const duration = item.duration ? ` · ${formatDuration(item.duration)}` : "";
   meta.textContent = `${block}${duration} · ${STATUS_TEXT[status]}`;
 
+  // Spec §4: the line written last night that says when this is really done.
+  const definition = document.createElement("p");
+  definition.className = "plan-def";
+  if (item.definition) definition.textContent = `Done means: ${item.definition}`;
+
   const note = document.createElement("p");
   note.className = "confirm-msg";
 
@@ -278,12 +329,16 @@ function buildPlanItem(item, sourceDate, planDate) {
   const isPreview = planDate > todayKey(); // tomorrow's plan: nothing to mark yet
   if (!isPreview) {
     if (item.doneAt) {
-      note.textContent = HONESTY.yes;
+      note.textContent = item.note
+        ? `${HONESTY.yes} “${item.note}”`
+        : HONESTY.yes;
     } else if (item.skippedAt) {
       note.textContent = HONESTY.no;
     } else if (item.postponedAt) {
-      note.textContent =
-        "Moved to another day. No pressure — you can undo this if today changes.";
+      const reason = POSTPONE_REASON_LABEL[item.postponeReason];
+      note.textContent = `Moved to another day${
+        reason ? ` (${reason.toLowerCase()})` : ""
+      }. No pressure — you can undo this if today changes.`;
       secondary.append(
         planButton("i-left", "Undo postpone", () =>
           onUndoPostpone(sourceDate, item.index),
@@ -301,7 +356,7 @@ function buildPlanItem(item, sourceDate, planDate) {
         note.textContent = HONESTY.ask;
         actions.append(
           planButton("i-check", "Yes, honestly", () =>
-            answer(sourceDate, item.index, "doneAt"),
+            confirmDone(sourceDate, item.index, item),
           ),
           planButton("i-x", "No, not really", () =>
             answer(sourceDate, item.index, "skippedAt"),
@@ -323,13 +378,13 @@ function buildPlanItem(item, sourceDate, planDate) {
           onChangeTime(sourceDate, item.index, item),
         ),
         planButton("i-right", "Postpone", () =>
-          onPostpone(sourceDate, item.index),
+          onPostpone(sourceDate, item.index, item),
         ),
       );
     }
   }
 
-  li.append(text, meta, note, actions, secondary);
+  li.append(text, meta, definition, note, actions, secondary);
   return li;
 }
 
@@ -613,9 +668,11 @@ function readForm(previous) {
     // The length is derived from the two clock times; it is stored so the
     // stats and AI still see an estimate, but nobody types minutes.
     const duration = plannedMinutes(time, endTime);
+    const definition = text ? ($(`d${n}`)?.value || "").trim() : "";
     const same = old[i] && old[i].text === text;
     return {
       text,
+      definition,
       time,
       endTime: endTime || null,
       duration,
@@ -623,6 +680,10 @@ function readForm(previous) {
       doneAt: same ? old[i].doneAt || null : null,
       skippedAt: same ? old[i].skippedAt || null : null,
       postponedAt: same ? old[i].postponedAt || null : null,
+      // Written while the plan was already running: keep them when the text
+      // of the task has not changed.
+      note: same ? old[i].note || null : null,
+      postponeReason: same ? old[i].postponeReason || null : null,
       rescheduled: same ? old[i].rescheduled || [] : [],
     };
   });
@@ -645,6 +706,7 @@ function fillForm(entry) {
   $("lessons").value = entry.lessons || "";
   (entry.priorities || []).forEach((p, i) => {
     $(`p${i + 1}`).value = p.text || "";
+    if ($(`d${i + 1}`)) $(`d${i + 1}`).value = p.definition || "";
     $(`t${i + 1}`).value = p.time || "";
     // Older plans only stored a start time and a length: rebuild the finish.
     $(`e${i + 1}`).value =
