@@ -54,6 +54,7 @@ import {
   deleteInsight,
 } from "./insights.js";
 import { askNotificationPermission } from "./notify.js";
+import { askStartTime } from "./timesheet.js";
 
 let currentWeek = mondayOf(toDateKey(new Date()));
 let editing = false; // true = fomu ina review ya leo, inaeditiwa
@@ -216,18 +217,14 @@ function completionMessage() {
 }
 
 // Spec §4: change or remove a priority's start time, keeping its history.
-function onChangeTime(sourceDate, index, item) {
-  const time = prompt(
-    `Start time for "${item.text}" (HH:MM). Leave empty for no time.`,
-    item.time || "",
-  );
+async function onChangeTime(sourceDate, index, item) {
+  const time = await askStartTime({
+    title: "Change start time",
+    text: item.text,
+    time: item.time || "",
+  });
   if (time === null) return; // cancelled
-  const clean = (time || "").trim();
-  if (clean !== "" && !/^\d{1,2}:\d{2}$/.test(clean)) {
-    showAppError("Use a time like 09:30, or leave it empty.");
-    return;
-  }
-  reschedulePriority(sourceDate, index, clean)
+  reschedulePriority(sourceDate, index, time)
     .then(() => refresh())
     .catch((err) => {
       console.error("MindLoop: reschedule failed", err);

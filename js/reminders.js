@@ -24,6 +24,7 @@ import {
 import { getCardPlan, toDateKey } from "./logic.js";
 import { cachedUserId } from "./auth.js";
 import { notificationState, askOnFirstTap } from "./notify.js";
+import { askStartTime } from "./timesheet.js";
 
 const TICK_MS = 30000; // check every 30 seconds
 const REMINDER_KEY = "mindloop:reminders";
@@ -340,21 +341,14 @@ function wireActions(actions, item, sourceDate, id) {
       writeStore(s);
       hideCard();
     }),
-    btn("i-calendar", "Badilisha muda", () => {
-      const time = prompt(
-        `New start time for "${item.text}" (HH:MM). Leave empty for no time.`,
-        item.time || "",
-      );
+    btn("i-calendar", "Badilisha muda", async () => {
+      const time = await askStartTime({
+        title: "Badilisha muda wa kuanza",
+        text: item.text,
+        time: item.time || "",
+      });
       if (time === null) return;
-      const clean = (time || "").trim();
-      if (clean !== "" && !/^\d{1,2}:\d{2}$/.test(clean)) {
-        if (card) {
-          card.querySelector(".reminder-note").textContent =
-            "Use a time like 09:30, or leave it empty.";
-        }
-        return;
-      }
-      act(reschedulePriority(sourceDate, item.index, clean));
+      act(reschedulePriority(sourceDate, item.index, time));
       hideCard();
     }),
     btn("i-check", "Nimekamilisha", () => {
