@@ -92,9 +92,10 @@ with `CRON_SECRET` set to the same value as `PUSH_CRON_SECRET`.
 2. On a phone: open MindLoop, sign in, finish (or skip) the tour, and **allow**
    notifications. That tap creates the subscription.
 3. Check the row: `select user_id, tz, quiet_on, created_at from public.push_subscriptions;`
-4. Add a priority for tomorrow with a start time ~10 minutes from now, then
-   close the app and wait. One notification should arrive within the 10-minute
-   window and no second one afterwards.
+4. Add a priority with a start time ~10 minutes from now — last night's plan
+   for today is used first, and a priority typed in during the day counts too —
+   then close the app and wait. One notification should arrive within the
+   10-minute window and no second one afterwards.
 5. Check the send: `select * from public.push_log order by created_at desc limit 5;`
 
 ## Honest limits
