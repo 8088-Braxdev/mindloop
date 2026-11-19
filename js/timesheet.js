@@ -244,6 +244,65 @@ export function askNote({
   });
 }
 
+/* ---------- The quiet plan moves of one priority (spec §4) ----------
+   Changing the start time and moving a task to another day are edits to the
+   plan, not answers. Big apps keep edits behind one labelled control, so they
+   open here, each with a plain name and one line saying what will happen — no
+   arrow a person has to guess at. */
+
+export function askPlanOptions({ text = "" } = {}) {
+  const list = document.createElement("div");
+  list.className = "sheet-options";
+
+  // Only one sheet is open at a time and openSheet keeps its own close
+  // function in `current`, so a row always resolves the sheet below.
+  const choose = (value) => {
+    if (current) current(value);
+  };
+
+  const row = (iconId, label, hint, value) => {
+    const node = document.createElement("button");
+    node.type = "button";
+    node.className = "plan-option";
+    node.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg>`;
+
+    const words = document.createElement("span");
+    words.className = "plan-option-words";
+    const name = document.createElement("strong");
+    name.textContent = label;
+    const detail = document.createElement("span");
+    detail.className = "plan-option-hint";
+    detail.textContent = hint;
+    words.append(name, detail);
+
+    node.append(words);
+    node.addEventListener("click", () => choose(value));
+    return node;
+  };
+
+  list.append(
+    row(
+      "i-clock",
+      "Change start time",
+      "Move it earlier or later today, or remove the time.",
+      "time",
+    ),
+    row(
+      "i-calendar",
+      "Move to another day",
+      "It leaves today's count. You can undo it straight away.",
+      "postpone",
+    ),
+  );
+
+  return openSheet({
+    title: "More options",
+    text,
+    body: list,
+    buttons: [{ label: "Close", className: "primary", onClick: (finish) => finish(null) }],
+  });
+}
+
 /* ---------- Reason for moving a priority (spec §4) ---------- */
 
 export function askReason({ title = "Why move it?", text = "", options = [] }) {

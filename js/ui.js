@@ -56,7 +56,12 @@ import {
   deleteInsight,
 } from "./insights.js";
 import { askNotificationPermission } from "./notify.js";
-import { askNote, askReason, askStartTime } from "./timesheet.js";
+import {
+  askNote,
+  askPlanOptions,
+  askReason,
+  askStartTime,
+} from "./timesheet.js";
 
 let currentWeek = mondayOf(toDateKey(new Date()));
 let editing = false; // true = fomu ina review ya leo, inaeditiwa
@@ -336,6 +341,14 @@ async function confirmDone(sourceDate, index, item) {
   await refresh();
 }
 
+// Spec §4: the quiet plan edits of a priority, asked one at a time. The person
+// picks the move by its name instead of decoding an arrow icon.
+async function onPlanOptions(sourceDate, index, item) {
+  const choice = await askPlanOptions({ text: item.text });
+  if (choice === "time") await onChangeTime(sourceDate, index, item);
+  else if (choice === "postpone") await onPostpone(sourceDate, index, item);
+}
+
 function onUndoPostpone(sourceDate, index) {
   clearPriorityStamp(sourceDate, index, "postponedAt")
     .then(() => setPriorityData(sourceDate, index, { postponeReason: null }))
@@ -427,12 +440,11 @@ function buildPlanItem(item, sourceDate, planDate) {
           ),
         );
       }
+      // One named control for the plan moves: the answers stay the only row
+      // that looks like a decision.
       secondary.append(
-        planButton("i-clock", "Change time", () =>
-          onChangeTime(sourceDate, item.index, item),
-        ),
-        planButton("i-right", "Postpone", () =>
-          onPostpone(sourceDate, item.index, item),
+        planButton("i-more", "More options", () =>
+          onPlanOptions(sourceDate, item.index, item),
         ),
       );
     }
@@ -987,6 +999,14 @@ const TOUR_STEPS = [
   },
   {
     view: "today",
+    target: "priority-list",
+    title: "Answering a priority",
+    text: "Three answers, one tap: Start, Mark done or Not done. Changing the start time or moving a task to another day sits under More options, and a move can always be undone.",
+    // Tomorrow's plan is shown before it starts: nothing to answer yet.
+    skip: (el) => !el.querySelector(".plan-actions button"),
+  },
+  {
+    view: "today",
     target: "tabbar",
     title: "Swipe between tabs",
     text: "Tap a tab, or swipe left and right anywhere on the page. The bar stays at the bottom, so Today, Week, Progress and Account are always within reach.",
@@ -1002,6 +1022,18 @@ const TOUR_STEPS = [
     target: "week-insight",
     title: "AI insights",
     text: "Tap for an AI-written insight on your week, based only on your own reviews. You get one per period, so make it count.",
+  },
+  {
+    view: "progress",
+    target: "score-card",
+    title: "Your Progress",
+    text: "One number for the last 7 days — done, on time, followed through — then your consistency, your patterns and a weekly report you can look back on.",
+  },
+  {
+    view: "progress",
+    target: "ask-card",
+    title: "Ask your progress",
+    text: "Pick a question and MindLoop answers it from your own reviews. Nothing here judges you; it only describes what you already did.",
   },
   {
     view: "account",
@@ -1117,7 +1149,9 @@ function showTourStep(index) {
 
   requestAnimationFrame(() => {
     const target = $(step.target);
-    if (!isVisible(target)) {
+    // A step whose part has nothing to show yet (a plan with no answers, an
+    // insight not written yet) is skipped rather than pointing at a blank.
+    if (!isVisible(target) || (step.skip && step.skip(target))) {
       showTourStep(index + 1);
       return;
     }
