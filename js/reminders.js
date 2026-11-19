@@ -239,14 +239,19 @@ function buildCard() {
   const note = document.createElement("p");
   note.className = "reminder-note";
 
+  // Two answers in their own row, the quieter plan moves under them: five
+  // equal buttons in one grid read as a wall nobody wants to read.
   const actions = document.createElement("div");
-  actions.className = "reminder-actions";
+  actions.className = "reminder-actions reminder-answers";
+
+  const secondary = document.createElement("div");
+  secondary.className = "plan-secondary reminder-secondary";
 
   const dismiss = document.createElement("button");
   dismiss.type = "button";
   dismiss.className = "plan-btn reminder-dismiss";
 
-  card.append(title, when, note, actions, dismiss);
+  card.append(title, when, note, actions, secondary, dismiss);
   return card;
 }
 
@@ -458,7 +463,7 @@ function act(promise) {
   });
 }
 
-function wireActions(actions, item, sourceDate, id) {
+function wireActions(actions, secondary, item, sourceDate, id) {
   const btn = (iconId, label, onClick) => {
     const b = document.createElement("button");
     b.type = "button";
@@ -473,10 +478,30 @@ function wireActions(actions, item, sourceDate, id) {
     return b;
   };
 
+  // The two answers to the reminder itself.
   actions.replaceChildren(
     btn("i-play", "Nimeanza — Start", () => {
       act(markPriority(sourceDate, item.index, "startedAt"));
       hideCard();
+    }),
+    btn("i-check", "Nimekamilisha", () => {
+      act(markPriority(sourceDate, item.index, "doneAt"));
+      hideCard();
+    }),
+  );
+
+  // Plan moves: quieter, below the answers, each with its own words.
+  secondary.replaceChildren(
+    btn("i-help", "Nimekwama", () => {
+      // Spec §6: stuck opens Rescue Mode, it does not postpone the task.
+      import("./rescue.js")
+        .then((rescue) => {
+          hideCard();
+          rescue.openRescue(item, sourceDate);
+        })
+        .catch((err) => {
+          console.error("MindLoop: rescue module failed to load", err);
+        });
     }),
     btn("i-clock", "Nikumbushe baadaye (15 min)", () => {
       const s = readStore();
@@ -497,21 +522,6 @@ function wireActions(actions, item, sourceDate, id) {
       if (time === null) return;
       act(reschedulePriority(sourceDate, item.index, time));
       hideCard();
-    }),
-    btn("i-check", "Nimekamilisha", () => {
-      act(markPriority(sourceDate, item.index, "doneAt"));
-      hideCard();
-    }),
-    btn("i-help", "Nimekwama", () => {
-      // Spec §6: stuck opens Rescue Mode, it does not postpone the task.
-      import("./rescue.js")
-        .then((rescue) => {
-          hideCard();
-          rescue.openRescue(item, sourceDate);
-        })
-        .catch((err) => {
-          console.error("MindLoop: rescue module failed to load", err);
-        });
     }),
   );
 }
@@ -573,7 +583,13 @@ export function renderReminders() {
   c.querySelector(".reminder-when").textContent = text.when;
   c.querySelector(".reminder-note").textContent = text.note;
 
-  wireActions(c.querySelector(".reminder-actions"), item, sourceDate, id);
+  wireActions(
+    c.querySelector(".reminder-answers"),
+    c.querySelector(".reminder-secondary"),
+    item,
+    sourceDate,
+    id,
+  );
 
   const dismiss = c.querySelector(".reminder-dismiss");
   dismiss.textContent = "Not now";
