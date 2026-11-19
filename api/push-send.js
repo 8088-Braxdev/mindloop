@@ -141,8 +141,8 @@ export default async function handler(req, res) {
       continue;
     }
 
-    // The plan for today was written last night; today's entry is a fallback
-    // for anyone who writes during the day.
+    // The plan for today was written last night; today's own entry is the
+    // fallback for anyone who writes during the day.
     const dates = [addDays(now.dateKey, -1), now.dateKey];
     const { data: rows, error: entryError } = await admin
       .from("entries")
@@ -155,7 +155,19 @@ export default async function handler(req, res) {
       continue;
     }
 
-    const { planDate, items } = getCardPlan(rows || [], now.dateKey, false);
+    let { planDate, items } = getCardPlan(rows || [], now.dateKey, false);
+    if (!items.length) {
+      // Nothing was planned last night: use what the person wrote today, so a
+      // priority added during the day still gets its one reminder.
+      const todayEntry = (rows || []).find((row) => row.date === now.dateKey);
+      const todayItems = ((todayEntry && todayEntry.priorities) || [])
+        .map((priority, index) => ({ ...priority, index }))
+        .filter((priority) => priority.text);
+      if (todayItems.length) {
+        planDate = now.dateKey;
+        items = todayItems;
+      }
+    }
 
     for (const item of items) {
       if (!item.time) continue;
