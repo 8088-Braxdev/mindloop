@@ -70,14 +70,19 @@
         <h2>Reminders and notifications</h2>
         <p>You can ask MindLoop to remind you before a priority starts, using the start time you set. Reminders
             appear inside the app, and — if you allow notifications for this site — also in your phone's
-            notification tray. These are local notifications made by your device: no reminder is sent to us or to
-            anyone else. MindLoop does not use a push server, so a reminder cannot reach you while the app is
-            closed.</p>
+            notification tray, including while the app is closed. To do that while closed, your device creates a
+            Web Push subscription and MindLoop stores it on your account: the subscription's address at your
+            browser's push service, its two encryption keys, your time zone and your quiet hours. Nothing from
+            your reviews is stored with it. The reminder message is a short nudge built from the priority's own
+            text and start time, and it is delivered by your browser's push service, which necessarily sees the
+            device address and the encrypted message.</p>
         <p>MindLoop asks your browser for notification permission once, by itself, when you finish the tour on your
             first visit. You can say no, and you can change the decision at any time in your browser's site
-            settings. Refusing does not stop the reminder card from appearing inside the app.</p>
+            settings. Refusing does not stop the reminder card from appearing inside the app. Deleting this device's
+            subscription, blocking notifications, or deleting your account removes the stored subscription.</p>
         <p>You can also set quiet hours in Account. During those hours MindLoop keeps your phone silent but still
-            shows the reminder card inside the app. Quiet hours are kept on your device, not on our servers.</p>
+            shows the reminder card inside the app. Quiet hours are kept on your device, and a copy is stored with
+            that device's push subscription so the reminder is not sent during them.</p>
         <p>A "Done means…" line, a completion note and the reason you pick when moving a priority are part of your
             review: they are saved to your account like the rest of it, and they are only sent to the AI provider
             when you ask for an AI insight, as described above.</p>

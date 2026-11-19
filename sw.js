@@ -1,7 +1,7 @@
 // App files are served from the device copy and refreshed in the background.
 // Supabase, Google sign-in and /api/ calls always go to the network.
 
-const CACHE = "mindloop-shell-v48";
+const CACHE = "mindloop-shell-v49";
 const SHELL = [
   "./",
   "index.html",
@@ -20,6 +20,7 @@ const SHELL = [
   "js/measure.js",
   "js/feedback.js",
   "js/notify.js",
+  "js/push.js",
   "js/timesheet.js",
   "privacy.html",
   "terms.html",
@@ -64,15 +65,53 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// Closed-app reminders (spec §5): the server sends one small message per
+// priority whose start time has arrived. The service worker is the only place
+// that can show it while MindLoop is not open.
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data ? event.data.text() : "" };
+  }
+  const options = {
+    body: payload.body || "",
+    icon: "icons/icon-192.png",
+    badge: "icons/favicon-32.png",
+    data: { url: payload.url || "./" },
+  };
+  if (payload.tag) options.tag = payload.tag;
+  event.waitUntil(
+    self.registration.showNotification(payload.title || "MindLoop", options),
+  );
+});
+
+// The browser can replace a subscription on its own (for example after the
+// push service rotates it). Best effort: keep the new one if the old options
+// are still enough, and let the app's next start save it on the server.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  const options = event.oldSubscription?.options;
+  if (!options || !event.oldSubscription) return;
+  event.waitUntil(
+    self.registration.pushManager
+      .subscribe(options)
+      .catch((err) =>
+        console.warn("MindLoop: push subscription was not renewed", err),
+      ),
+  );
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const target = event.notification.data?.url || "./";
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((list) => {
         const open = list.find((client) => "focus" in client);
         if (open) return open.focus();
-        return self.clients.openWindow("./");
+        return self.clients.openWindow(target);
       }),
   );
 });
