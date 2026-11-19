@@ -32,7 +32,7 @@ were **not** inspected from here and are marked for investigation.
 | §16 RLS on every user-owned table | Needs investigation | Policies live in Supabase, not in this repository |
 | §16 Deletes rely on RLS rather than an explicit user filter | Needs investigation | `clearAll` and `deleteInsight` filter by date/period only; this is safe only if RLS is correct |
 | §16 AI keys server-side, bearer auth, rate limits | Existing | `api/insight.js` reads `GROQ_API_KEY`; Supabase RLS for reads |
-| §17 Mobile, keyboard, loading/offline states | Partial, improved | 44px+ controls and offline/sync states already existed; visible focus rings, `prefers-reduced-motion` support and arrow-key navigation for the tab bar were added. A full screen-reader pass still needs a person using a screen reader |
+| §17 Mobile, keyboard, loading/offline states | Partial, improved | 44px+ controls and offline/sync states already existed; visible focus rings, `prefers-reduced-motion` support and arrow-key navigation for the tab bar were added. This pass centred every sheet on the screen and fitted it to the visual viewport, so an on-screen keyboard can no longer cover it, gave the quiet-hours fields their own labels so the row holds its shape on a phone, made the tour dim the page and place its bubble next to the highlighted part, left tooltips to mouse and keyboard users only (a tap once left one stuck), made the feedback card one-time per device, and added tablet/desktop layouts. A full screen-reader pass still needs a person using a screen reader |
 
 ## Notes for the next phase
 

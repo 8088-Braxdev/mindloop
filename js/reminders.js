@@ -318,24 +318,34 @@ function buildQuietHours() {
   toggleText.textContent = "No device notifications during these hours";
   toggle.append(on, toggleText);
 
+  // Two labelled fields side by side: the label sits above its own input, so
+  // the row keeps its shape on a narrow phone and on a wide screen.
+  const field = (id, labelText) => {
+    const wrap = document.createElement("label");
+    wrap.className = "quiet-field";
+    wrap.htmlFor = id;
+    const text = document.createElement("span");
+    text.textContent = labelText;
+    const input = document.createElement("input");
+    input.type = "time";
+    input.id = id;
+    wrap.append(text, input);
+    return { wrap, input };
+  };
+
+  const fromField = field("quiet-from", "From");
+  const toField = field("quiet-to", "To");
+  const from = fromField.input;
+  const to = toField.input;
+
+  const arrow = document.createElement("span");
+  arrow.className = "quiet-arrow";
+  arrow.setAttribute("aria-hidden", "true");
+  arrow.textContent = "→";
+
   const row = document.createElement("div");
   row.className = "quiet-row";
-
-  const fromLabel = document.createElement("label");
-  fromLabel.htmlFor = "quiet-from";
-  fromLabel.textContent = "From";
-  const from = document.createElement("input");
-  from.type = "time";
-  from.id = "quiet-from";
-
-  const toLabel = document.createElement("label");
-  toLabel.htmlFor = "quiet-to";
-  toLabel.textContent = "to";
-  const to = document.createElement("input");
-  to.type = "time";
-  to.id = "quiet-to";
-
-  row.append(fromLabel, from, toLabel, to);
+  row.append(fromField.wrap, arrow, toField.wrap);
 
   const hint = document.createElement("p");
   hint.className = "hint";
