@@ -147,25 +147,25 @@
 
         <nav class="tabs" id="tabbar" aria-label="Main">
             <button class="tab is-active" data-view="today" data-tip="Today" aria-label="Today">
-                <svg class="icon">
+                <svg class="icon" aria-hidden="true">
                     <use href="#i-sun" />
                 </svg>
                 <span>Today</span>
             </button>
             <button class="tab" data-view="week" data-tip="Week" aria-label="Week">
-                <svg class="icon">
+                <svg class="icon" aria-hidden="true">
                     <use href="#i-chart" />
                 </svg>
                 <span>Week</span>
             </button>
             <button class="tab" data-view="progress" data-tip="Progress" aria-label="Progress">
-                <svg class="icon">
+                <svg class="icon" aria-hidden="true">
                     <use href="#i-target" />
                 </svg>
                 <span>Progress</span>
             </button>
             <button class="tab" data-view="account" data-tip="Account" aria-label="Account">
-                <svg class="icon">
+                <svg class="icon" aria-hidden="true">
                     <use href="#i-user" />
                 </svg>
                 <span>Account</span>
@@ -399,7 +399,7 @@
         </main>
     </div>
 
-    <div id="tour-tooltip" class="tour-tooltip" hidden>
+    <div id="tour-tooltip" class="tour-tooltip" role="dialog" aria-labelledby="tour-title" aria-live="polite" hidden>
         <h3 id="tour-title"></h3>
         <p id="tour-text"></p>
         <div class="tour-actions">

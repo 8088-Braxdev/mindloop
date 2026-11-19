@@ -189,7 +189,10 @@ const onViewShow = {};
 
 function showView(name) {
   document.querySelectorAll(".tab").forEach((tab) => {
-    tab.classList.toggle("is-active", tab.dataset.view === name);
+    const active = tab.dataset.view === name;
+    tab.classList.toggle("is-active", active);
+    // Screen readers hear which section the person is on, not just its look.
+    tab.setAttribute("aria-current", active ? "page" : "false");
   });
   document.querySelectorAll(".view").forEach((view) => {
     view.hidden = view.id !== `view-${name}`;
@@ -243,15 +246,21 @@ const STATUS_TEXT = {
   postponed: "Postponed",
 };
 
+// "Nimeanza — Start" becomes "Nimeanza" under the icon on a phone; the full
+// wording still lives in .btn-label, aria-label and data-tip.
+function captionFor(label) {
+  return label.split("—")[0].split("(")[0].trim() || label;
+}
+
 function planButton(iconId, label, onClick) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "plan-btn";
   btn.setAttribute("aria-label", label);
-  // Three actions per row. On phones the label is hidden and the icon stands
-  // for the action; data-tip still shows the words on hover/focus.
+  // Three actions per row. On phones the icon gets a short caption under it,
+  // and data-tip still shows the full words on hover/focus.
   btn.dataset.tip = label;
-  btn.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg><span class="btn-label">${label}</span>`;
+  btn.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg><span class="btn-label">${label}</span><span class="btn-caption">${captionFor(label)}</span>`;
   btn.addEventListener("click", onClick);
   return btn;
 }

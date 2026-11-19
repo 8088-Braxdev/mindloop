@@ -492,6 +492,18 @@ input[type="number"]:focus {
   height: 20px;
 }
 
+/* A short caption under the icon, shown on phones only. The full label stays
+   in .btn-label for wide screens, in aria-label for screen readers and in
+   data-tip for a mouse. */
+.btn-caption {
+  display: none;
+  max-width: 100%;
+  font-size: 0.68rem;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
 /* Plan moves are real, but they are not the answer: keep them quiet. */
 .plan-secondary button {
   min-height: 46px;
@@ -1411,21 +1423,32 @@ html:has(.feedback-overlay) {
 }
 
 @media (max-width: 520px) {
-  /* Icons only, still three per row; the words stay in aria-label and in the
-     mouse-only tooltip above, so nothing is left hovering on a tap. */
+  /* Icon on top, one short word under it, three per row: the icon is quick to
+     find and the caption removes the guessing. The full wording stays in
+     aria-label and in the mouse-only tooltip above. */
   .plan-actions .btn-label,
   .plan-secondary .btn-label,
   .reminder-actions .btn-label {
     display: none;
   }
+  .plan-actions .btn-caption,
+  .plan-secondary .btn-caption,
+  .reminder-actions .btn-caption {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
   .plan-actions button,
-  .plan-secondary button,
   .reminder-actions button {
-    min-height: 48px;
-    padding: 0;
+    min-height: 58px;
+    padding: 6px 4px;
+    gap: 4px;
   }
   .plan-secondary button {
-    min-height: 44px;
+    min-height: 54px;
+    padding: 6px 4px;
+    gap: 4px;
   }
 }
 

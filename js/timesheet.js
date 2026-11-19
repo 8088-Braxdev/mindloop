@@ -35,6 +35,11 @@ function fitToVisualViewport(overlay) {
 function openSheet({ title, text, body, buttons, onOpen }) {
   return new Promise((resolve) => {
     if (current) current(null);
+    // Remember where the keyboard was, so closing the sheet puts it back.
+    const previousFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
 
     const overlay = document.createElement("div");
     overlay.className = "sheet-overlay";
@@ -66,11 +71,38 @@ function openSheet({ title, text, body, buttons, onOpen }) {
       unfixViewport();
       overlay.remove();
       current = null;
+      if (previousFocus && document.contains(previousFocus)) {
+        previousFocus.focus({ preventScroll: true });
+      }
       resolve(value);
     }
 
+    // Escape closes. Tab stays inside the sheet, so a keyboard or a screen
+    // reader cannot wander into the page behind the dialog.
     function onKey(event) {
-      if (event.key === "Escape") finish(null);
+      if (event.key === "Escape") {
+        finish(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [
+        ...sheet.querySelectorAll(
+          'button, input, textarea, select, a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((el) => !el.disabled && el.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!sheet.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
 
     for (const button of buttons) {
@@ -94,6 +126,11 @@ function openSheet({ title, text, body, buttons, onOpen }) {
     const unfixViewport = fitToVisualViewport(overlay);
     current = finish;
     if (onOpen) onOpen();
+    else {
+      // Nothing to type into: start on the sheet's first control.
+      const first = sheet.querySelector("input, textarea, button");
+      if (first) first.focus({ preventScroll: true });
+    }
   });
 }
 

@@ -465,7 +465,10 @@ function wireActions(actions, item, sourceDate, id) {
     b.className = "plan-btn";
     b.setAttribute("aria-label", label);
     b.dataset.tip = label;
-    b.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg><span class="btn-label">${label}</span>`;
+    // The phone shows a short caption ("Nimeanza", "Badilisha muda") instead
+    // of the full bilingual label, which is too long for three per row.
+    const caption = label.split("—")[0].split("(")[0].trim() || label;
+    b.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg><span class="btn-label">${label}</span><span class="btn-caption">${caption}</span>`;
     b.addEventListener("click", onClick);
     return b;
   };
