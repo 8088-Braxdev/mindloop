@@ -1,5 +1,10 @@
 {
   "functions": {
-    "api/insight.js": { "maxDuration": 30 }
+    "api/insight.js": {
+      "maxDuration": 30
+    },
+    "api/push-send.js": {
+      "maxDuration": 30
+    }
   }
 }

@@ -31,6 +31,21 @@ function markAsked() {
   }
 }
 
+// Once the permission is granted, this device also asks for a Web Push
+// subscription, so reminders can reach the phone while MindLoop is closed
+// (spec §5). Every failure is silent: the in-app reminder card still works.
+export function syncPush() {
+  import("./push.js")
+    .then((push) => push.enablePush())
+    .catch((err) =>
+      console.warn("MindLoop: closed-app reminders unavailable", err),
+    );
+}
+
+export function syncPushIfGranted() {
+  if (notificationState() === "granted") syncPush();
+}
+
 // Call from a click/tap handler. Asking once is the whole point: if the prompt
 // was dismissed, the person is not asked again.
 export function askNotificationPermission() {
@@ -38,7 +53,13 @@ export function askNotificationPermission() {
   markAsked();
   try {
     const result = Notification.requestPermission();
-    if (result && typeof result.catch === "function") result.catch(() => {});
+    if (result && typeof result.then === "function") {
+      result
+        .then((state) => {
+          if (state === "granted") syncPush();
+        })
+        .catch(() => {});
+    }
   } catch (err) {
     console.warn("MindLoop: notification permission failed", err);
   }

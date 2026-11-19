@@ -7,10 +7,11 @@
 // Permission is asked once, by the app itself, when the first tour ends
 // (see js/notify.js); there is no button to hunt down for it.
 //
-// What this is NOT: a guaranteed closed-app push notification. Web push while
-// the app is closed needs a server-side push subscription and scheduler,
-// which is a later step. If the app was not open at the start time, the card
-// simply appears when the person returns and the item still needs an answer.
+// Closed-app delivery is real too, and lives elsewhere: js/push.js stores this
+// device's Web Push subscription and api/push-send.js sends the reminder at the
+// start time (scheduled every 5 minutes, see PUSH.md). Both paths are best
+// effort — a phone that is off, offline or out of battery is not a failure, and
+// the card is still waiting when the person returns.
 //
 // This module is self-contained: it builds its own card inside the Today
 // view and its own settings inside the Account card, so index.html and ui.js
@@ -23,7 +24,7 @@ import {
 } from "./storage.js";
 import { getCardPlan, toDateKey } from "./logic.js";
 import { cachedUserId } from "./auth.js";
-import { notificationState, askOnFirstTap } from "./notify.js";
+import { notificationState, askOnFirstTap, syncPushIfGranted } from "./notify.js";
 import { askStartTime } from "./timesheet.js";
 
 const TICK_MS = 30000; // check every 30 seconds
@@ -126,6 +127,11 @@ function setQuiet(quiet) {
   } catch {
     // A per-device convenience; the reminder card works without it.
   }
+  // Closed-app reminders are sent by the server, so it needs this device's
+  // quiet hours too (js/push.js). Without a subscription this is a no-op.
+  import("./push.js")
+    .then((push) => push.syncQuietHours(quiet))
+    .catch(() => {});
 }
 
 const clockMinutes = (value) => {
@@ -196,7 +202,7 @@ function buildNotificationStatus() {
     const state = notificationState();
     if (state === "granted") {
       status.textContent =
-        "Notifications are on. Each reminder also appears in your phone's notification tray while MindLoop is open.";
+        "Notifications are on. While MindLoop is open a reminder card appears, and your phone also gets the reminder at each priority's start time — even when the app is closed.";
     } else if (state === "denied") {
       status.textContent =
         "Notifications are blocked for MindLoop. You can allow them again in your browser's site settings. The reminder card still appears inside the app.";
@@ -278,7 +284,7 @@ function buildSettings() {
   const scope = document.createElement("p");
   scope.className = "hint";
   scope.textContent =
-    "This applies to every priority with a start time. Closed-app notifications need a push server and arrive in a later update — MindLoop will never claim guaranteed delivery.";
+    "This applies to every priority with a start time. With notifications allowed, closed-app reminders arrive at the start time on each device you signed in on, and quiet hours are respected there too.";
 
   wrap.append(
     head,
@@ -588,6 +594,10 @@ function initReminders() {
   // Older accounts finished the tour before the app started asking; their next
   // real tap brings the prompt once.
   askOnFirstTap();
+
+  // Already allowed? Keep this device's closed-app subscription current
+  // (time zone, quiet hours) without asking anything.
+  syncPushIfGranted();
 
   renderReminders();
   if (timer) clearInterval(timer);
