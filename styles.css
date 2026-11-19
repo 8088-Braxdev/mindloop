@@ -6,9 +6,13 @@
   --line: #e4dbcf;
   --accent: #b4532a;
   --accent-text: #ffffff;
-  --radius: 10px;
+  --radius: 12px;
+  --radius-sm: 8px;
   --danger: #b4462f;
   --surface-alt: #f7f1e8;
+  --shadow-sm: 0 1px 2px rgba(43, 38, 34, 0.06), 0 2px 8px rgba(43, 38, 34, 0.04);
+  --shadow-md: 0 18px 48px rgba(28, 24, 20, 0.22);
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, #fff);
 }
 
 * {
@@ -48,7 +52,7 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding-top: 20px;
+  padding-top: calc(16px + env(safe-area-inset-top));
   position: sticky;
   top: 0;
   background: var(--bg);
@@ -101,6 +105,7 @@ main {
   font: inherit;
   font-size: 0.7rem;
   line-height: 1.1;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .tab .icon {
@@ -109,7 +114,7 @@ main {
 }
 
 .tab.is-active {
-  background: transparent;
+  background: var(--accent-soft);
   color: var(--accent);
   border-color: transparent;
   font-weight: 600;
@@ -127,6 +132,7 @@ main {
   border-radius: var(--radius);
   padding: 16px;
   margin-top: 12px;
+  box-shadow: var(--shadow-sm);
 }
 
 .card h2 {
@@ -194,6 +200,17 @@ button {
 .primary:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.primary:not(:disabled) {
+  transition: filter 0.15s ease, transform 0.06s ease;
+}
+.primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.primary:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.96);
 }
 
 .status {
@@ -369,7 +386,8 @@ input[type="number"]:focus {
   font-weight: 600;
 }
 
-/* Quiet hours (Account) */
+/* Quiet hours (Account): a labelled field per time, so the row keeps its shape
+   on a narrow phone and on a wide screen alike. */
 .quiet-hours {
   margin-top: 16px;
   padding-top: 12px;
@@ -382,23 +400,51 @@ input[type="number"]:focus {
 .quiet-toggle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-height: 44px;
+  color: var(--text);
   font-size: 0.92rem;
 }
+.quiet-toggle input[type="checkbox"] {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--accent);
+}
 .quiet-row {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
   gap: 10px;
-  margin-top: 8px;
-  flex-wrap: wrap;
+  margin-top: 10px;
 }
-.quiet-row label {
+.quiet-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 }
-.quiet-row input[type="time"] {
+.quiet-field span {
+  letter-spacing: 0.02em;
+}
+.quiet-field input[type="time"] {
+  width: 100%;
   min-height: 44px;
+  margin: 0;
+}
+.quiet-field input:disabled {
+  opacity: 0.55;
+}
+.quiet-arrow {
+  padding-bottom: 12px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.quiet-hours .hint {
+  margin-top: 10px;
 }
 /* Three actions per row, so a priority never turns into a wall of buttons. */
 .plan-actions,
@@ -612,9 +658,9 @@ input[type="number"]:focus {
   margin: 0 0 20px;
   padding: 14px 16px;
   border: 1px solid var(--line);
-  border-left: 3px solid (var(--accent));
+  border-left: 3px solid var(--accent);
   border-radius: 10px;
-  background: (var(--surface-alt));
+  background: var(--surface-alt);
 }
 #confirm-block h3 {
   margin: 0 0 4px;
@@ -635,7 +681,11 @@ input[type="number"]:focus {
   cursor: pointer;
 }
 .plan-btn:hover {
-  background: (var(--surface-alt));
+  background: var(--surface-alt);
+}
+.plan-btn:active {
+  background: var(--surface-alt);
+  transform: translateY(1px);
 }
 .plan-btn .icon {
   width: 16px;
@@ -1038,27 +1088,50 @@ input[type="number"]:focus {
   opacity: 0;
   pointer-events: none;
 }
+/* The step's own part stays bright while everything else is dimmed, so the
+   person can see exactly which part the words are about. */
 .tour-target {
   position: relative;
   z-index: 30;
   border-radius: var(--radius);
-  box-shadow: 0 0 0 3px var(--accent), 0 0 24px rgba(180, 83, 42, 0.35);
-  transition: box-shadow 0.3s ease;
+  background: var(--card);
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 0 0 9999px rgba(28, 24, 20, 0.55);
+  transition: box-shadow 0.25s ease;
   scroll-margin-top: 90px;
+}
+
+/* The streak is a word inside the header, not a card: give the ring a shape. */
+.tour-target#streak-label {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
 }
 
 .tour-tooltip {
   position: fixed;
   left: 50%;
+  top: auto;
   bottom: calc(92px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 40;
   width: min(92%, 420px);
+  max-height: calc(100dvh - 140px);
+  overflow-y: auto;
   background: var(--card);
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   padding: 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-md);
+}
+.tour-progress {
+  margin: 0 0 4px;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .tour-tooltip h3 {
   margin: 0 0 6px;
@@ -1154,8 +1227,10 @@ input[type="number"]:focus {
 }
 .feedback-card {
   width: min(100%, 400px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   margin: 0;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-md);
 }
 .feedback-card h2 {
   margin-bottom: 6px;
@@ -1197,25 +1272,42 @@ input[type="number"]:focus {
   justify-content: center;
 }
 
-/* ---------- In-app sheet (used instead of browser prompts) ---------- */
+/* ---------- In-app sheet (used instead of browser prompts) ----------
+   Sheets centre on the screen at every width: anchored to the bottom, an
+   on-screen keyboard used to cover them and force a scroll. */
 .sheet-overlay {
   position: fixed;
   inset: 0;
   z-index: 70;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   padding: 16px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: rgba(28, 24, 20, 0.45);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
+  animation: overlay-in 0.14s ease-out;
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .sheet {
-  width: min(100%, 400px);
+  width: min(100%, 420px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   margin: 0;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-md);
   animation: sheet-in 0.18s ease-out;
 }
 
@@ -1273,10 +1365,10 @@ input[type="number"]:focus {
   justify-content: center;
 }
 
-@media (min-width: 640px) {
-  .sheet-overlay {
-    align-items: center;
-  }
+/* A dialog owns the screen while it is open. */
+html:has(.sheet-overlay),
+html:has(.feedback-overlay) {
+  overflow: hidden;
 }
 
 /* ---------- Tooltips for icon-only controls ---------- */
@@ -1304,15 +1396,23 @@ input[type="number"]:focus {
   pointer-events: none;
   transition: opacity 0.12s ease, transform 0.12s ease;
 }
-[data-tip]:hover::after,
-[data-tip]:focus::after,
+/* A tooltip belongs to a mouse. A tap used to leave one stuck on screen, so
+   touch devices now get the icon (with its aria-label) and no lingering bubble;
+   keyboard users still see the words through :focus-visible. */
+@media (hover: hover) and (pointer: fine) {
+  [data-tip]:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
 [data-tip]:focus-visible::after {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
 
 @media (max-width: 520px) {
-  /* Icons only, still three per row; the words appear on tap/hover. */
+  /* Icons only, still three per row; the words stay in aria-label and in the
+     mouse-only tooltip above, so nothing is left hovering on a tap. */
   .plan-actions .btn-label,
   .plan-secondary .btn-label,
   .reminder-actions .btn-label {
@@ -1326,5 +1426,66 @@ input[type="number"]:focus {
   }
   .plan-secondary button {
     min-height: 44px;
+  }
+}
+
+/* ---------- Tablet and desktop (spec §17) ----------
+   The phone layout stays the reference; wider screens get more air, a floating
+   tab bar and roomier cards instead of a stretched phone column. */
+@media (min-width: 720px) {
+  .topbar,
+  main {
+    max-width: 680px;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .topbar {
+    padding-top: calc(18px + env(safe-area-inset-top));
+  }
+
+  .card {
+    padding: 20px;
+  }
+
+  .day-strip {
+    gap: 10px;
+  }
+
+  .day-cell {
+    padding: 12px 0;
+    font-size: 0.8rem;
+  }
+
+  .tabs {
+    left: 50%;
+    right: auto;
+    bottom: 16px;
+    transform: translateX(-50%);
+    width: calc(100% - 48px);
+    max-width: 520px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+  }
+
+  .tab {
+    border-radius: 12px;
+  }
+
+  main {
+    padding-bottom: 132px;
+  }
+
+  .tour-tooltip {
+    max-height: calc(100dvh - 120px);
+  }
+}
+
+@media (min-width: 1080px) {
+  .topbar,
+  main {
+    max-width: 760px;
   }
 }

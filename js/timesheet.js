@@ -8,6 +8,30 @@
 
 let current = null; // close function of the open sheet, if any
 
+// The on-screen keyboard shrinks the visual viewport, not the layout viewport.
+// Fitting the overlay to the visual viewport keeps the centred sheet above the
+// keyboard instead of behind it, which is what used to force a scroll.
+function fitToVisualViewport(overlay) {
+  const viewport = window.visualViewport;
+  if (!viewport) return () => {};
+  const sheet = overlay.querySelector(".sheet");
+  const apply = () => {
+    overlay.style.top = `${viewport.offsetTop}px`;
+    overlay.style.height = `${viewport.height}px`;
+    overlay.style.bottom = "auto";
+    if (sheet) {
+      sheet.style.maxHeight = `${Math.max(220, viewport.height - 32)}px`;
+    }
+  };
+  apply();
+  viewport.addEventListener("resize", apply);
+  viewport.addEventListener("scroll", apply);
+  return () => {
+    viewport.removeEventListener("resize", apply);
+    viewport.removeEventListener("scroll", apply);
+  };
+}
+
 function openSheet({ title, text, body, buttons, onOpen }) {
   return new Promise((resolve) => {
     if (current) current(null);
@@ -39,6 +63,7 @@ function openSheet({ title, text, body, buttons, onOpen }) {
 
     function finish(value) {
       document.removeEventListener("keydown", onKey);
+      unfixViewport();
       overlay.remove();
       current = null;
       resolve(value);
@@ -66,6 +91,7 @@ function openSheet({ title, text, body, buttons, onOpen }) {
 
     document.addEventListener("keydown", onKey);
     document.body.append(overlay);
+    const unfixViewport = fitToVisualViewport(overlay);
     current = finish;
     if (onOpen) onOpen();
   });

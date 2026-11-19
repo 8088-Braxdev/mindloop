@@ -1030,7 +1030,11 @@ const isVisible = (el) =>
   (el.offsetParent !== null || getComputedStyle(el).position === "fixed");
 
 function endTour() {
-  $("tour-tooltip").hidden = true;
+  const tip = $("tour-tooltip");
+  tip.hidden = true;
+  tip.style.top = "";
+  tip.style.bottom = "";
+  tourTargetEl = null;
   document
     .querySelectorAll(".tour-target")
     .forEach((el) => el.classList.remove("tour-target"));
@@ -1038,6 +1042,60 @@ function endTour() {
   // The tour has just been finished (or skipped) with a tap, which is the
   // moment big apps ask for notifications. Asked once in total.
   askNotificationPermission();
+}
+
+let tourTargetEl = null;
+let tourPlacePending = false;
+
+const tourTooltip = () => $("tour-tooltip");
+
+// The bubble sits next to the highlighted part: under it when there is room,
+// above it otherwise, always inside the screen. Pinned to the bottom, the old
+// bubble could cover the very thing the step was explaining.
+function placeTourTooltip() {
+  const tip = tourTooltip();
+  if (!tip || tip.hidden || !tourTargetEl) return;
+  const gap = 14;
+  const margin = 12;
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  const rect = tourTargetEl.getBoundingClientRect();
+  const height = tip.offsetHeight;
+  const below = vh - rect.bottom - gap - margin;
+  const above = rect.top - gap - margin;
+  let top;
+  if (below >= height) top = rect.bottom + gap;
+  else if (above >= height) top = rect.top - gap - height;
+  else top = below >= above ? vh - height - margin : margin;
+  top = Math.min(Math.max(top, margin), Math.max(margin, vh - height - margin));
+  tip.style.top = `${Math.round(top)}px`;
+  tip.style.bottom = "auto";
+}
+
+function schedulePlacement() {
+  if (tourPlacePending) return;
+  tourPlacePending = true;
+  requestAnimationFrame(() => {
+    tourPlacePending = false;
+    placeTourTooltip();
+  });
+}
+
+window.addEventListener("scroll", schedulePlacement, {
+  passive: true,
+  capture: true,
+});
+window.addEventListener("resize", schedulePlacement);
+
+function setTourProgress(index) {
+  const tip = tourTooltip();
+  if (!tip) return;
+  let progress = tip.querySelector(".tour-progress");
+  if (!progress) {
+    progress = document.createElement("p");
+    progress.className = "tour-progress";
+    tip.insertBefore(progress, tip.firstChild);
+  }
+  progress.textContent = `Step ${index + 1} of ${TOUR_STEPS.length}`;
 }
 
 function showTourStep(index) {
@@ -1058,6 +1116,7 @@ function showTourStep(index) {
       .querySelectorAll(".tour-target")
       .forEach((el) => el.classList.remove("tour-target"));
     target.classList.add("tour-target");
+    tourTargetEl = target;
     if (getComputedStyle(target).position !== "fixed") {
       target.scrollIntoView({ behavior: "smooth", block: "center" });
     }
@@ -1065,9 +1124,15 @@ function showTourStep(index) {
     tourIndex = index;
     $("tour-title").textContent = step.title;
     $("tour-text").textContent = step.text;
+    setTourProgress(index);
     $("tour-next").textContent =
       index === TOUR_STEPS.length - 1 ? "Got it" : "Next";
-    $("tour-tooltip").hidden = false;
+    const tip = tourTooltip();
+    tip.hidden = false;
+    placeTourTooltip();
+    // The scroll may still be animating; place again once it settles.
+    schedulePlacement();
+    window.setTimeout(placeTourTooltip, 380);
   });
 }
 
@@ -1078,7 +1143,7 @@ function startTour() {
 function initTour() {
   $("tour-help")?.addEventListener("click", startTour);
 
-$("tour-skip")?.addEventListener("click", endTour);
+  $("tour-skip")?.addEventListener("click", endTour);
   $("tour-next")?.addEventListener("click", () => {
     if (tourIndex === TOUR_STEPS.length - 1) endTour();
     else showTourStep(tourIndex + 1);

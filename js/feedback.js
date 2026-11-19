@@ -10,6 +10,7 @@ import { getEntriesLocal } from "./storage.js";
 import { cachedUserId } from "./auth.js";
 
 const KEY = "mindloop:feedback";
+const DEVICE_KEY = "mindloop:feedback-device";
 const WHATSAPP = "255618811359";
 const ASK_AFTER_REVIEWS = 2;
 const FIRST_DELAY_MS = 6000;
@@ -22,6 +23,13 @@ function storeKey() {
 }
 
 function alreadyAsked() {
+  // Once per device, and once per account: a second account on the same phone
+  // is not asked again, the way a store app asks once per install.
+  try {
+    if (localStorage.getItem(DEVICE_KEY)) return true;
+  } catch {
+    return true;
+  }
   const key = storeKey();
   if (!key) return false; // no account yet: ask once there is one
   try {
@@ -32,6 +40,11 @@ function alreadyAsked() {
 }
 
 function markAsked(reason) {
+  try {
+    localStorage.setItem(DEVICE_KEY, "1");
+  } catch {
+    // A convenience flag; asking again later is not harmful.
+  }
   const key = storeKey();
   if (!key) return;
   try {
@@ -150,6 +163,11 @@ function build() {
   return overlay;
 }
 
+function overlayOpen() {
+  // Never interrupt the tour or another sheet: the rating is a quiet question.
+  return !!document.querySelector(".sheet-overlay, .feedback-overlay");
+}
+
 export function maybeAskForFeedback() {
   if (alreadyAsked()) return true;
   const app = document.getElementById("app");
@@ -157,15 +175,19 @@ export function maybeAskForFeedback() {
   if (reviewedDays() < ASK_AFTER_REVIEWS) return false;
   const tour = document.getElementById("tour-tooltip");
   if (tour && !tour.hidden) return false;
+  if (overlayOpen()) return false;
   openFeedback();
   return true;
 }
 
 export function openFeedback() {
-  if (document.querySelector(".feedback-overlay")) return;
+  if (alreadyAsked() || overlayOpen()) return;
   const overlay = build();
   document.body.append(overlay);
   overlay.hidden = false;
+  // Asked is asked: the mark lands the moment the card appears, so closing the
+  // tab, a dead battery or a reload cannot bring it back a second time.
+  markAsked("shown");
   requestAnimationFrame(() => {
     const first = overlay.querySelector(".feedback-star");
     first?.focus({ preventScroll: true });
