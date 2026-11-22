@@ -330,6 +330,39 @@ input[type="number"]:focus {
 .priority-row input[type="number"] {
   width: auto;
 }
+/* Per-priority reminder (spec §4): Account holds the default, each task may
+   choose its own. One row that keeps its shape on a narrow phone. */
+.priority-remind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.priority-remind:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.priority-remind > span {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.priority-remind select {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 10px 0;
+  min-height: 42px;
+}
+.priority-remind select:focus {
+  outline: none;
+}
 
 /* ---------- Today's plan (items rendered by ui.js) ---------- */
 .plan-list {

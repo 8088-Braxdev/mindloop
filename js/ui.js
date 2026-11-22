@@ -735,6 +735,9 @@ function readForm(previous) {
     // stats and AI still see an estimate, but nobody types minutes.
     const duration = plannedMinutes(time, endTime);
     const definition = text ? ($(`d${n}`)?.value || "").trim() : "";
+    // Per-priority reminder (spec §4): "" means "use Account's default".
+    const remindValue = text ? ($(`r${n}`)?.value ?? "") : "";
+    const remind = remindValue === "" ? null : Number(remindValue);
     const same = old[i] && old[i].text === text;
     return {
       text,
@@ -742,6 +745,7 @@ function readForm(previous) {
       time,
       endTime: endTime || null,
       duration,
+      remind,
       startedAt: same ? old[i].startedAt || null : null,
       doneAt: same ? old[i].doneAt || null : null,
       skippedAt: same ? old[i].skippedAt || null : null,
@@ -773,6 +777,9 @@ function fillForm(entry) {
   (entry.priorities || []).forEach((p, i) => {
     $(`p${i + 1}`).value = p.text || "";
     if ($(`d${i + 1}`)) $(`d${i + 1}`).value = p.definition || "";
+    if ($(`r${i + 1}`)) {
+      $(`r${i + 1}`).value = p.remind == null ? "" : String(p.remind);
+    }
     $(`t${i + 1}`).value = p.time || "";
     // Older plans only stored a start time and a length: rebuild the finish.
     $(`e${i + 1}`).value =

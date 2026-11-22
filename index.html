@@ -243,8 +243,8 @@
 
                             <h3 class="priority-head">Tomorrow's 3 priorities</h3>
                             <p class="hint priority-head">Write the task, the time you will start it, and the time you
-                                expect to finish. Both times are optional — MindLoop reminds you at the start time,
-                                using the reminder settings in Account. "Done means…" is optional too: a short note
+                                expect to finish. Both times are optional — MindLoop reminds you at the start time you
+                                choose for each priority; Account holds the default. "Done means…" is optional too: a short note
                                 (two lines) that tells tomorrow-you when this task is really finished.</p>
                             <p class="hint priority-head">
                                 Write carefully. Once you save, these priorities are locked and can't be changed. You
@@ -262,6 +262,14 @@
                                     <input id="e1" type="time" aria-label="Expected finish time for priority 1">
                                     <span id="dur1" class="time-dur" aria-live="polite"></span>
                                 </div>
+                                <label class="priority-remind"><span>Remind me</span>
+                                    <select id="r1" aria-label="When to remind you before priority 1 starts">
+                                        <option value="">Account default</option>
+                                        <option value="0">At the start time</option>
+                                        <option value="5">5 minutes before</option>
+                                        <option value="10">10 minutes before</option>
+                                        <option value="15">15 minutes before</option>
+                                    </select></label>
                                 <textarea id="d1" rows="2" maxlength="200" placeholder="Done means… when this is really finished (optional)"
                                     aria-label="Definition of done for priority 1"></textarea>
                             </div>
@@ -277,6 +285,14 @@
                                     <input id="e2" type="time" aria-label="Expected finish time for priority 2">
                                     <span id="dur2" class="time-dur" aria-live="polite"></span>
                                 </div>
+                                <label class="priority-remind"><span>Remind me</span>
+                                    <select id="r2" aria-label="When to remind you before priority 2 starts">
+                                        <option value="">Account default</option>
+                                        <option value="0">At the start time</option>
+                                        <option value="5">5 minutes before</option>
+                                        <option value="10">10 minutes before</option>
+                                        <option value="15">15 minutes before</option>
+                                    </select></label>
                                 <textarea id="d2" rows="2" maxlength="200" placeholder="Done means… when this is really finished (optional)"
                                     aria-label="Definition of done for priority 2"></textarea>
                             </div>
@@ -292,6 +308,14 @@
                                     <input id="e3" type="time" aria-label="Expected finish time for priority 3">
                                     <span id="dur3" class="time-dur" aria-live="polite"></span>
                                 </div>
+                                <label class="priority-remind"><span>Remind me</span>
+                                    <select id="r3" aria-label="When to remind you before priority 3 starts">
+                                        <option value="">Account default</option>
+                                        <option value="0">At the start time</option>
+                                        <option value="5">5 minutes before</option>
+                                        <option value="10">10 minutes before</option>
+                                        <option value="15">15 minutes before</option>
+                                    </select></label>
                                 <textarea id="d3" rows="2" maxlength="200" placeholder="Done means… when this is really finished (optional)"
                                     aria-label="Definition of done for priority 3"></textarea>
                             </div>

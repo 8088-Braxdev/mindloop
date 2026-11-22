@@ -77,6 +77,13 @@ function readLead() {
   }
 }
 
+// Each priority may choose its own lead in the night review (spec §4); Account
+// holds the default for the ones that did not choose.
+function leadFor(item) {
+  const own = Number(item?.remind);
+  return VALID_LEAD.has(own) ? own : readLead();
+}
+
 function setLead(value) {
   const uid = cachedUserId();
   if (!uid || !VALID_LEAD.has(value)) return;
@@ -341,11 +348,11 @@ function buildSettings() {
   const hint = document.createElement("p");
   hint.className = "hint";
   hint.textContent =
-    "MindLoop uses each priority's start time. When that time is near and the app is open, a reminder card appears at the top of Today. If you set a finish time too, one gentle heads-up follows when that time is reached and the task still has no answer. One reminder each — no follow-ups, and none of them assume you failed.";
+    "MindLoop uses each priority's start time. When that moment is near and the app is open, a reminder card appears at the top of Today. If you set a finish time too, one gentle heads-up follows when that time is reached and the task still has no answer. One reminder each — no follow-ups, and none of them assume you failed.";
 
   const leadLabel = document.createElement("label");
   leadLabel.htmlFor = "reminder-lead-select";
-  leadLabel.textContent = "Remind me";
+  leadLabel.textContent = "Remind me by default";
 
   const lead = document.createElement("select");
   lead.id = "reminder-lead-select";
@@ -367,7 +374,7 @@ function buildSettings() {
   const scope = document.createElement("p");
   scope.className = "hint";
   scope.textContent =
-    "This applies to every priority with a start time. Closed-app reminders are sent by MindLoop's scheduler every few minutes, so they can arrive a little after the start time; each device you signed in on gets its own, with its own quiet hours.";
+    "This is the default for every priority with a start time. Each priority can pick its own reminder in the night review's \"Remind me\" row. Closed-app reminders are sent by MindLoop's scheduler every few minutes, so they can arrive a little after the moment you chose; each device you signed in on gets its own, with its own quiet hours.";
 
   wrap.append(
     head,
@@ -616,7 +623,6 @@ export function renderReminders() {
   );
   const now = new Date();
   const store = readStore();
-  const leadMin = readLead();
   pruneAnswered(store, items, sourceDate);
   notifyExpectedFinish(items, sourceDate, planDate, now, store);
 
@@ -624,7 +630,7 @@ export function renderReminders() {
 
   if (planDate <= toDateKey(now)) {
     for (const item of items) {
-      if (!needsReminder(item, planDate, now, leadMin)) continue;
+      if (!needsReminder(item, planDate, now, leadFor(item))) continue;
       const id = idOf(sourceDate, item.index);
       const record = store[id];
 
@@ -645,9 +651,12 @@ export function renderReminders() {
   const record = store[id] || {};
   // One device notification per priority, at the first moment it is due.
   if (!record.notifiedAt) {
+    const lead = leadFor(item);
     showDeviceNotification(
-      "Muda wa kuanza umefika",
-      `"${item.text}" — ${item.time}. Dakika 5 tu za kuanza zinatosheleza.`,
+      lead > 0 ? "Kumbuka: unaanza hivi karibuni" : "Muda wa kuanza umefika",
+      lead > 0
+        ? `"${item.text}" — unaanza saa ${item.time} (dakika ${lead} zijazo). Dakika 5 tu za kuanza zinatosheleza.`
+        : `"${item.text}" — ${item.time}. Dakika 5 tu za kuanza zinatosheleza.`,
       `mindloop-start-${item.time}-${item.index}`,
     );
     store[id] = { ...record, sourceDate, notifiedAt: Date.now() };
