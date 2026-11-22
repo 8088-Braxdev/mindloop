@@ -16,6 +16,9 @@ import webpush from "web-push";
 import { addDays, getCardPlan } from "../js/logic.js";
 
 const WINDOW_MIN = 10; // due = start time reached within the last 10 minutes
+// A priority may ask to be reminded earlier than its start time (spec §4):
+// the same values the app offers in the night review.
+const VALID_LEAD = new Set([0, 5, 10, 15]);
 const MAX_SUBSCRIPTIONS = 500; // one run stays a small, quick job
 
 const fail = (res, status, code, message) =>
@@ -70,10 +73,15 @@ function inQuietHours(subscription, minutes) {
     : minutes >= from || minutes < to;
 }
 
-function reminderPayload(item, planDate) {
+// `ahead` is how many minutes the start time is still away. A reminder that
+// arrives early says so instead of claiming the moment has come.
+function reminderPayload(item, planDate, ahead) {
+  const early = ahead > 0;
   return {
-    title: "Muda wa kuanza umefika",
-    body: `"${item.text}" — ${item.time}. Dakika 5 tu za kuanza zinatosheleza.`,
+    title: early ? "Kumbuka: unaanza hivi karibuni" : "Muda wa kuanza umefika",
+    body: early
+      ? `"${item.text}" — unaanza saa ${item.time} (dakika ${ahead} zijazo). Dakika 5 tu za kuanza zinatosheleza.`
+      : `"${item.text}" — ${item.time}. Dakika 5 tu za kuanza zinatosheleza.`,
     tag: `mindloop-start-${planDate}-${item.index}`,
     url: "./",
   };
@@ -177,8 +185,14 @@ export default async function handler(req, res) {
       }
       const start = clockMinutes(item.time);
       if (start === null) continue;
-      const late = now.minutes - start;
-      if (late < 0 || late >= WINDOW_MIN) continue;
+      // The priority's own lead, or the start time itself when it has none.
+      // The window is widened by that lead so a 5-minute scheduler still lands
+      // inside it, and a late run still delivers rather than dropping silently.
+      const ownLead = Number(item.remind);
+      const lead = VALID_LEAD.has(ownLead) ? ownLead : 0;
+      const late = now.minutes - (start - lead);
+      if (late < 0 || late >= lead + WINDOW_MIN) continue;
+      const ahead = start - now.minutes;
 
       // One reminder per task per day: the insert is the lock.
       const { error: logError } = await admin.from("push_log").insert({
@@ -194,7 +208,7 @@ export default async function handler(req, res) {
             endpoint: subscription.endpoint,
             keys: { p256dh: subscription.p256dh, auth: subscription.auth },
           },
-          JSON.stringify(reminderPayload(item, planDate)),
+          JSON.stringify(reminderPayload(item, planDate, ahead)),
           // Long enough that a phone which was briefly offline still gets the
           // nudge when it reconnects, instead of the push service dropping it.
           { TTL: 3600 },

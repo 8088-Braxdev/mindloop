@@ -11,7 +11,7 @@ How the parts fit:
 | --- | --- | --- |
 | Browser | `js/push.js` | Turns an already-granted notification permission into a Web Push subscription, and keeps that device's time zone and quiet hours on the server. No new permission prompt: the app still asks once, when the first tour ends. |
 | Key | `api/push-key.js` | Returns `VAPID_PUBLIC_KEY` to the browser. The private key never leaves Vercel. |
-| Sender | `api/push-send.js` | Reads subscriptions, works out each device's local date and clock, and sends the reminder for priorities whose start time has just arrived and that still have no answer. `push_log` guarantees one send per task per day. |
+| Sender | `api/push-send.js` | Reads subscriptions, works out each device's local date and clock, and sends the reminder for priorities whose start time (or that priority's own "Remind me" lead) has arrived and that still have no answer. `push_log` guarantees one send per task per day. |
 | Worker | `sw.js` | `push` handler shows the notification; tapping it opens the app. |
 | Database | `supabase/push.sql` | `push_subscriptions` (private per person, RLS) and `push_log` (server only). |
 | Scheduler | Supabase `pg_cron` | Vercel's free plan only allows daily crons, so the 5-minute ping comes from Supabase instead. |
@@ -106,5 +106,7 @@ with `CRON_SECRET` set to the same value as `PUSH_CRON_SECRET`.
 - A phone that is off, offline, or has the app's notifications blocked gets no
   push. The card is still there when the app opens.
 - Quiet hours silence push as well, using the hours saved on that device.
-- Closed-app reminders use each priority's start time; the "remind me N minutes
-  before" setting stays a per-device, app-open convenience.
+- Closed-app reminders use each priority's start time and that priority's own
+  "Remind me" choice (Account's setting is the default when the priority has
+  none). The sender's window grows by that lead, so a 15-minute lead can arrive
+  up to 15 minutes early and never later than 10 minutes after the start time.
