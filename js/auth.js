@@ -52,6 +52,15 @@ export async function signInWithGoogle() {
   if (error) throw error;
 }
 export async function signOut() {
+  // This device stops being a reminder target the moment the person leaves:
+  // drop the subscription and its row while the session is still valid (the
+  // row is private to the account, so it cannot be removed after sign-out).
+  try {
+    const push = await import("./push.js");
+    await push.disablePush();
+  } catch (err) {
+    console.warn("MindLoop: push subscription was not removed", err);
+  }
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
   try {

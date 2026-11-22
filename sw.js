@@ -1,7 +1,7 @@
 // App files are served from the device copy and refreshed in the background.
 // Supabase, Google sign-in and /api/ calls always go to the network.
 
-const CACHE = "mindloop-shell-v52";
+const CACHE = "mindloop-shell-v53";
 const SHELL = [
   "./",
   "index.html",
@@ -88,14 +88,27 @@ self.addEventListener("push", (event) => {
 });
 
 // The browser can replace a subscription on its own (for example after the
-// push service rotates it). Best effort: keep the new one if the old options
-// are still enough, and let the app's next start save it on the server.
+// push service rotates it). Renew it with the same key, then tell any open
+// MindLoop tab so the new endpoint is saved to the account. If no tab is open,
+// the app's next start saves it (js/push.js reuses the live subscription).
 self.addEventListener("pushsubscriptionchange", (event) => {
-  const options = event.oldSubscription?.options;
-  if (!options || !event.oldSubscription) return;
+  const key = event.oldSubscription?.options?.applicationServerKey;
+  if (!key) return;
   event.waitUntil(
     self.registration.pushManager
-      .subscribe(options)
+      .subscribe({ userVisibleOnly: true, applicationServerKey: key })
+      .then((subscription) =>
+        self.clients
+          .matchAll({ type: "window", includeUncontrolled: true })
+          .then((list) => {
+            for (const client of list) {
+              client.postMessage({
+                type: "mindloop:push-renewed",
+                endpoint: subscription.endpoint,
+              });
+            }
+          }),
+      )
       .catch((err) =>
         console.warn("MindLoop: push subscription was not renewed", err),
       ),

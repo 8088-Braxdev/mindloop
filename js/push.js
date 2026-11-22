@@ -6,9 +6,12 @@
 // Push subscription, stored per device in `push_subscriptions` (only the
 // signed-in person's own rows are visible, RLS).
 //
-// Nothing is asked here. The permission prompt stays exactly where it was: the
-// app asks once by itself when the first tour ends (js/notify.js), and this
-// module only turns an already-granted permission into a subscription.
+// Nothing is asked here. The permission prompt stays where it belongs: a real
+// tap, either at the end of the tour or on the "Allow notifications" control
+// in Account (js/notify.js), and this module only turns an already-granted
+// permission into a subscription. Every failure names its reason, so the app
+// can say what is actually true instead of promising a reminder it cannot
+// deliver.
 //
 // The subscription carries the device's time zone and the person's quiet
 // hours, so api/push-send.js can honour both without guessing.
@@ -19,13 +22,16 @@ import { getSession } from "./auth.js";
 const TABLE = "push_subscriptions";
 const KEY_URL = "api/push-key";
 
-export function pushSupported() {
-  return (
-    "serviceWorker" in navigator &&
-    "PushManager" in window &&
-    typeof Notification !== "undefined" &&
-    Notification.permission === "granted"
-  );
+// Why the last attempt failed, if it did (js/notify.js shows this).
+let lastFailure = null;
+
+function failed(reason) {
+  lastFailure = reason;
+  return { ok: false, reason };
+}
+
+export function pushFailure() {
+  return lastFailure;
 }
 
 // VAPID keys travel as URL-safe base64; the browser wants raw bytes.
@@ -85,18 +91,24 @@ export async function currentSubscription() {
 // start: it reuses an existing subscription and only rewrites its row, which
 // keeps the stored time zone and quiet hours current.
 export async function enablePush({ quiet = null } = {}) {
-  if (!pushSupported()) return false;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    return failed("unsupported");
+  }
+  if (typeof Notification === "undefined") return failed("unsupported");
+  if (Notification.permission !== "granted") return failed("permission");
 
-  const session = await getSession();
-  if (!session) return false; // a subscription belongs to an account
+  const session = await getSession().catch(() => null);
+  if (!session) return failed("signed-out"); // a subscription belongs to an account
 
   const registration = await readyRegistration();
-  if (!registration?.pushManager) return false;
+  if (!registration?.pushManager) return failed("no-service-worker");
 
-  let subscription = await registration.pushManager.getSubscription();
+  let subscription = await registration.pushManager
+    .getSubscription()
+    .catch(() => null);
   if (!subscription) {
     const publicKey = await fetchPublicKey();
-    if (!publicKey) return false; // push is not set up on the server yet
+    if (!publicKey) return failed("no-server-key"); // not set up on the server yet
     try {
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
@@ -104,13 +116,15 @@ export async function enablePush({ quiet = null } = {}) {
       });
     } catch (err) {
       console.warn("MindLoop: push subscription failed", err);
-      return false;
+      return failed("subscribe");
     }
   }
 
   const json = subscription.toJSON?.() || {};
   const keys = json.keys || {};
-  if (!json.endpoint || !keys.p256dh || !keys.auth) return false;
+  if (!json.endpoint || !keys.p256dh || !keys.auth) {
+    return failed("incomplete");
+  }
 
   const row = {
     user_id: session.user.id,
@@ -130,16 +144,23 @@ export async function enablePush({ quiet = null } = {}) {
     .upsert(row, { onConflict: "endpoint" });
   if (error) {
     console.warn("MindLoop: push subscription was not saved", error);
-    return false;
+    return failed("save");
   }
-  return true;
+  lastFailure = null;
+  return { ok: true, endpoint: json.endpoint };
 }
 
 // Quiet hours are a device setting; the server needs the copy for this device.
 export async function syncQuietHours(quiet) {
   if (!quiet) return;
   const subscription = await currentSubscription();
-  if (!subscription?.endpoint) return;
+  if (!subscription?.endpoint) {
+    // This device has not been linked yet (for example the first attempt was
+    // made offline). Create the link now, with these hours, so the server has
+    // them before the first closed-app reminder.
+    await enablePush({ quiet });
+    return;
+  }
   const { error } = await supabase
     .from(TABLE)
     .update({
@@ -154,7 +175,10 @@ export async function syncQuietHours(quiet) {
 // Used when the person blocks notifications or clears this device's data.
 export async function disablePush() {
   const subscription = await currentSubscription();
-  if (!subscription) return true;
+  if (!subscription) {
+    lastFailure = null;
+    return true;
+  }
   const endpoint = subscription.endpoint;
   try {
     await subscription.unsubscribe();
