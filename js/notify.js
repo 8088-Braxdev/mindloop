@@ -18,6 +18,24 @@ const ASK_COUNT_KEY = "mindloop:notify-asks";
 const QUIET_KEY = "mindloop:quiet-hours";
 const AUTO_ASK_LIMIT = 2; // never nag: two automatic asks, then Account
 
+// The permission has no event of its own, so every path that can change what
+// this device may do announces it. Account repaints on this instead of showing
+// the answer from before the prompt appeared.
+const CHANGE_EVENT = "mindloop:notify-change";
+
+function announce() {
+  try {
+    document.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+  } catch {
+    // Older browsers: Account still refreshes when it becomes visible again.
+  }
+}
+
+export function onNotificationChange(handler) {
+  document.addEventListener(CHANGE_EVENT, handler);
+  return () => document.removeEventListener(CHANGE_EVENT, handler);
+}
+
 export function notificationState() {
   if (typeof Notification === "undefined") return "unsupported";
   return Notification.permission; // "default" | "granted" | "denied"
@@ -105,6 +123,7 @@ export function syncPush() {
     })
     .finally(() => {
       attempt = null;
+      announce();
     });
   return attempt;
 }
@@ -163,6 +182,7 @@ export async function requestNotifications() {
   } else if (notificationState() === "granted") {
     await syncPush();
   }
+  announce();
   return notificationReport();
 }
 
@@ -183,6 +203,9 @@ export async function askNotificationPermission() {
     // The Account control can still try later.
     console.warn("MindLoop: notification permission failed", err);
     return "default";
+  } finally {
+    // The prompt may have been answered while Account was already open.
+    announce();
   }
 }
 

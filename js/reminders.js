@@ -30,6 +30,7 @@ import {
   notificationState,
   notificationReport,
   requestNotifications,
+  onNotificationChange,
   askOnFirstTap,
   syncPushIfGranted,
 } from "./notify.js";
@@ -236,10 +237,10 @@ function buildNotificationStatus() {
       return;
     }
     if (report.push === "on") {
-      action.hidden = false;
-      action.textContent = "Check again";
+      // Nothing left to tap: a button here would read like a problem.
+      action.hidden = true;
       status.textContent =
-        "Notifications are on for this device: MindLoop can send one reminder when a priority's start time arrives, including while the app is closed. Delivery still depends on this phone, its connection and the browser's push service.";
+        "Notifications are on for this device. MindLoop can send one reminder when a priority's start time arrives, even while the app is closed. Delivery still depends on this phone, its connection and the browser's push service.";
       return;
     }
     action.hidden = false;
@@ -281,6 +282,10 @@ function buildNotificationStatus() {
   });
 
   refresh();
+  // The ask can be answered while this card is already on screen (for example
+  // the automatic ask on the first tap). Repaint so it never keeps showing
+  // "Allow notifications" after the permission was granted.
+  onNotificationChange(refresh);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refresh();
   });
