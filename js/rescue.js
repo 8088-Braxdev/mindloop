@@ -126,10 +126,13 @@ function askStep(item, sourceDate, blocker) {
     el("p", "rescue-note", "About 2-5 minutes. Edit it if it does not fit you."),
   );
 
-  const input = el("input");
-  input.type = "text";
+  // A step can be a sentence, so this is a box to write in, not a one-line
+  // search field. The suggestion is the placeholder: it is there to borrow,
+  // and it never fills the box as if the person had written it.
+  const input = el("textarea", "rescue-step");
+  input.rows = 3;
   input.maxLength = 200;
-  input.value = suggestion;
+  input.placeholder = suggestion;
   input.setAttribute("aria-label", "Your small step");
 
   const go = el("button", "plan-btn", "That's my step");
@@ -146,11 +149,8 @@ function askStep(item, sourceDate, blocker) {
   });
 
   go.addEventListener("click", () => {
-    const step = (input.value || "").trim();
-    if (!step) {
-      input.focus();
-      return;
-    }
+    // Empty box: the person chose the suggestion by leaving it alone.
+    const step = (input.value || "").trim() || suggestion;
     askOutcome(item, sourceDate, step);
   });
 
@@ -286,7 +286,12 @@ function initStyle() {
     #rescue-card[hidden] { display: none; }
     .rescue-blockers { display: grid; gap: 8px; margin: 10px 0; }
     .rescue-blockers .plan-btn { justify-content: flex-start; }
-    #rescue-card input[type="text"] { margin: 10px 0; }
+    #rescue-card .rescue-step {
+      display: block;
+      min-height: 84px;
+      margin: 10px 0;
+      line-height: 1.4;
+    }
     .rescue-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
     .rescue-actions .plan-btn { flex: 1 1 auto; justify-content: center; }
     .rescue-cancel { margin-top: 8px; color: var(--muted); }

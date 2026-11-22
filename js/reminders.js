@@ -4,8 +4,10 @@
 // What this IS: when a priority's start time arrives, a reminder card appears
 // at the top of Today, and — if the person allowed notifications — a device
 // notification with the same words. One reminder per priority, no follow-ups.
-// Permission is asked once, by the app itself, when the first tour ends
-// (see js/notify.js); there is no button to hunt down for it.
+// Permission is asked at the end of the tour and, if it was never answered,
+// from Account by a plain "Allow notifications" control (see js/notify.js).
+// Account also states whether closed-app delivery actually works on this device
+// instead of claiming it does.
 //
 // Closed-app delivery is real too, and lives elsewhere: js/push.js stores this
 // device's Web Push subscription and api/push-send.js sends the reminder at the
@@ -24,7 +26,13 @@ import {
 } from "./storage.js";
 import { getCardPlan, toDateKey } from "./logic.js";
 import { cachedUserId } from "./auth.js";
-import { notificationState, askOnFirstTap, syncPushIfGranted } from "./notify.js";
+import {
+  notificationState,
+  notificationReport,
+  requestNotifications,
+  askOnFirstTap,
+  syncPushIfGranted,
+} from "./notify.js";
 import { askStartTime } from "./timesheet.js";
 
 const TICK_MS = 30000; // check every 30 seconds
@@ -190,36 +198,95 @@ async function showDeviceNotification(title, body, tag) {
   }
 }
 
-// No "turn on notifications" button: the app asks once by itself, when the
-// first tour ends. This line only says where the permission stands, because a
-// blocked permission has to be changed in the browser, not in the app.
+// The account line tells the plain truth about this device: allowed or not,
+// and whether a closed-app reminder can actually reach it. A permission the
+// person never answered is fixed here, by a real tap.
 function buildNotificationStatus() {
+  const box = document.createElement("div");
+  box.className = "notif-status";
+
   const status = document.createElement("p");
   status.className = "hint";
   status.id = "reminder-permission-status";
 
-  const paint = () => {
-    const state = notificationState();
-    if (state === "granted") {
-      status.textContent =
-        "Notifications are on. While MindLoop is open a reminder card appears, and your phone also gets the reminder at each priority's start time — even when the app is closed.";
-    } else if (state === "denied") {
-      status.textContent =
-        "Notifications are blocked for MindLoop. You can allow them again in your browser's site settings. The reminder card still appears inside the app.";
-    } else if (state === "unsupported") {
-      status.textContent =
-        "This browser does not support notifications. The reminder card still appears inside the app.";
-    } else {
-      status.textContent =
-        "MindLoop asks for notification permission once, when the tour ends. Reminders still appear inside the app without it, and you can allow notifications any time in your browser's site settings.";
+  const action = document.createElement("button");
+  action.type = "button";
+  action.className = "plan-btn notif-action";
+
+  const paint = (report) => {
+    action.disabled = false;
+    if (report.permission === "unsupported") {
+      action.hidden = true;
+      status.textContent = report.iosTab
+        ? "This browser cannot show notifications. On iPhone and iPad they only work after MindLoop is added to the Home Screen; a Safari tab never shows them. The reminder card still appears inside the app."
+        : "This browser does not support notifications. The reminder card still appears inside the app.";
+      return;
     }
+    if (report.permission === "denied") {
+      action.hidden = true;
+      status.textContent =
+        "Notifications are blocked for MindLoop in this browser, so the app cannot ask again. You can allow them in your browser's site settings; the reminder card still appears inside the app.";
+      return;
+    }
+    if (report.permission === "default") {
+      action.hidden = false;
+      action.textContent = "Allow notifications";
+      status.textContent =
+        "MindLoop has not been allowed to notify this device yet, so nothing reaches your phone. Tap Allow and your browser asks once. The reminder card works inside the app either way.";
+      return;
+    }
+    if (report.push === "on") {
+      action.hidden = false;
+      action.textContent = "Check again";
+      status.textContent =
+        "Notifications are on for this device: MindLoop can send one reminder when a priority's start time arrives, including while the app is closed. Delivery still depends on this phone, its connection and the browser's push service.";
+      return;
+    }
+    action.hidden = false;
+    action.textContent = "Try again";
+    const why = {
+      "no-server-key": "MindLoop's push keys are not set up on the server yet",
+      "signed-out": "you are signed out on this device",
+      "no-service-worker": "the service worker is not ready yet",
+      save: "this device could not be saved to your account",
+      subscribe: "this browser refused a push subscription",
+      incomplete: "this browser returned an incomplete subscription",
+      unsupported: "this browser does not support push",
+      permission: "notifications are not allowed",
+    }[report.reason];
+    status.textContent = `Notifications are allowed for MindLoop, but closed-app reminders are not working on this device${why ? ` — ${why}` : ""}. Reminders appear inside the app only while it is open.`;
   };
 
-  paint();
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) paint();
+  const refresh = () => {
+    action.disabled = true;
+    notificationReport()
+      .then(paint)
+      .catch(() => {
+        action.disabled = false;
+        status.textContent =
+          "MindLoop could not check this device's notification state.";
+      });
+  };
+
+  action.addEventListener("click", () => {
+    action.disabled = true;
+    status.textContent = "Checking this device…";
+    requestNotifications()
+      .then(paint)
+      .catch(() => {
+        action.disabled = false;
+        status.textContent =
+          "MindLoop could not change this device's notification setting.";
+      });
   });
-  return status;
+
+  refresh();
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refresh();
+  });
+
+  box.append(status, action);
+  return box;
 }
 
 /* ---------- DOM the module owns ---------- */
@@ -289,7 +356,7 @@ function buildSettings() {
   const scope = document.createElement("p");
   scope.className = "hint";
   scope.textContent =
-    "This applies to every priority with a start time. With notifications allowed, closed-app reminders arrive at the start time on each device you signed in on, and quiet hours are respected there too.";
+    "This applies to every priority with a start time. Closed-app reminders are sent by MindLoop's scheduler every few minutes, so they can arrive a little after the start time; each device you signed in on gets its own, with its own quiet hours.";
 
   wrap.append(
     head,
@@ -320,7 +387,7 @@ function buildQuietHours() {
   on.id = "quiet-on";
 
   const toggleText = document.createElement("span");
-  toggleText.textContent = "No device notifications during these hours";
+  toggleText.textContent = "No MindLoop notifications during these hours";
   toggle.append(on, toggleText);
 
   // Two labelled fields side by side: the label sits above its own input, so
@@ -355,7 +422,7 @@ function buildQuietHours() {
   const hint = document.createElement("p");
   hint.className = "hint";
   hint.textContent =
-    "During these hours MindLoop keeps your phone silent but still shows the reminder inside the app. The times may cross midnight.";
+    "During these hours MindLoop sends no notification to this device, including closed-app reminders; the reminder card still appears inside the app. This only silences MindLoop — it does not switch on your phone's Do Not Disturb or mute other apps. The times may cross midnight.";
 
   const paint = () => {
     const quiet = readQuiet();

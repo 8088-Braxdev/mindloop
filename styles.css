@@ -489,6 +489,22 @@ input[type="number"]:focus {
 .quiet-hours .hint {
   margin-top: 10px;
 }
+/* The notification state in Account: the truth about this device, plus the one
+   tap that can change it. */
+.notif-status {
+  margin-top: 14px;
+}
+.notif-status .hint {
+  margin: 0;
+}
+.notif-status .notif-action {
+  width: 100%;
+  margin-top: 8px;
+  justify-content: center;
+}
+.notif-status .notif-action[hidden] {
+  display: none;
+}
 /* Three actions per row, so a priority never turns into a wall of buttons. */
 .plan-actions,
 .plan-secondary,

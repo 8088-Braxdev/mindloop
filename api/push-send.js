@@ -195,7 +195,9 @@ export default async function handler(req, res) {
             keys: { p256dh: subscription.p256dh, auth: subscription.auth },
           },
           JSON.stringify(reminderPayload(item, planDate)),
-          { TTL: 900 },
+          // Long enough that a phone which was briefly offline still gets the
+          // nudge when it reconnects, instead of the push service dropping it.
+          { TTL: 3600 },
         );
         result.sent += 1;
       } catch (err) {
@@ -209,6 +211,20 @@ export default async function handler(req, res) {
           result.removed += 1;
         } else {
           console.error("MindLoop push: send failed", status, err?.body || err);
+          // Release the log row so the next run can try again; keeping it would
+          // silently drop this reminder for the whole day.
+          const { error: clearError } = await admin
+            .from("push_log")
+            .delete()
+            .eq("user_id", subscription.user_id)
+            .eq("task_key", `${planDate}#${item.index}`)
+            .eq("fire_date", now.dateKey);
+          if (clearError) {
+            console.error(
+              "MindLoop push: could not release the log row",
+              clearError,
+            );
+          }
           result.failed += 1;
         }
       }

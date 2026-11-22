@@ -1,75 +1,198 @@
 // js/notify.js
-// Notification permission, asked the way large apps do it: MindLoop asks once
-// by itself, when the first tour ends, instead of keeping a
-// "Turn on notifications" button in Account.
+// Notification permission, asked honestly.
 //
-// A browser only shows the prompt when it comes from a real tap, so the ask is
-// always attached to one: the tour's last button. Nothing is sent from here —
-// the permission only lets the device show a local reminder while the app is
-// open.
+// Two things this module refuses to do: claim a reminder will reach the phone
+// when it cannot, and hide the ask behind one moment that may never happen.
+// The app still asks by itself after the tour (and on the next real tap for
+// anyone who finished the tour earlier), and Account has a plain
+// "Allow notifications" / "Try again" control that always works. A browser
+// only shows the prompt from a real tap, so every ask is attached to one.
+//
+// Nothing is sent from here: the permission lets the device show a local
+// reminder while the app is open, and (through js/push.js) lets the server
+// reach it while the app is closed.
 
-const ASKED_KEY = "mindloop:notify-asked";
+import { cachedUserId } from "./auth.js";
+
+const ASK_COUNT_KEY = "mindloop:notify-asks";
+const QUIET_KEY = "mindloop:quiet-hours";
+const AUTO_ASK_LIMIT = 2; // never nag: two automatic asks, then Account
 
 export function notificationState() {
   if (typeof Notification === "undefined") return "unsupported";
   return Notification.permission; // "default" | "granted" | "denied"
 }
 
-function hasAsked() {
+export function isInstalled() {
   try {
-    return localStorage.getItem(ASKED_KEY) === "1";
+    return (
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.matchMedia("(display-mode: fullscreen)").matches ||
+      window.navigator.standalone === true
+    );
   } catch {
-    return true; // no storage: never nag
+    return false;
   }
 }
 
-function markAsked() {
+function isIos() {
+  const ua = navigator.userAgent || "";
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
+function autoAsksUsed() {
   try {
-    localStorage.setItem(ASKED_KEY, "1");
+    return Number(localStorage.getItem(ASK_COUNT_KEY)) || 0;
+  } catch {
+    return AUTO_ASK_LIMIT; // no storage: never nag
+  }
+}
+
+function recordAsk() {
+  try {
+    localStorage.setItem(ASK_COUNT_KEY, String(autoAsksUsed() + 1));
   } catch {
     // Per-device convenience only.
   }
 }
 
-// Once the permission is granted, this device also asks for a Web Push
-// subscription, so reminders can reach the phone while MindLoop is closed
-// (spec §5). Every failure is silent: the in-app reminder card still works.
-export function syncPush() {
-  import("./push.js")
-    .then((push) => push.enablePush())
-    .catch((err) =>
-      console.warn("MindLoop: closed-app reminders unavailable", err),
+// The copy of the quiet hours the person set on this device. push.js stores it
+// with the subscription, so the server can stay silent too.
+function readQuiet() {
+  const uid = cachedUserId();
+  if (!uid) return null;
+  try {
+    const parsed = JSON.parse(
+      localStorage.getItem(`${QUIET_KEY}:${uid}`) || "null",
     );
+    if (!parsed || typeof parsed !== "object") return null;
+    return {
+      on: !!parsed.on,
+      from: parsed.from || "22:00",
+      to: parsed.to || "07:00",
+    };
+  } catch {
+    return null;
+  }
+}
+
+let attempt = null;
+let lastResult = { ok: null, reason: null };
+
+// Creates or refreshes this device's closed-app subscription. One attempt at a
+// time; every caller sees the same result instead of racing three upserts.
+export function syncPush() {
+  if (attempt) return attempt;
+  attempt = import("./push.js")
+    .then((push) => push.enablePush({ quiet: readQuiet() }))
+    .then((result) => {
+      lastResult = result;
+      if (!result?.ok) {
+        console.warn(
+          "MindLoop: closed-app reminders unavailable —",
+          result?.reason || "unknown",
+        );
+      }
+      return result;
+    })
+    .catch((err) => {
+      lastResult = { ok: false, reason: "error" };
+      console.warn("MindLoop: closed-app reminders unavailable", err);
+      return lastResult;
+    })
+    .finally(() => {
+      attempt = null;
+    });
+  return attempt;
 }
 
 export function syncPushIfGranted() {
   if (notificationState() === "granted") syncPush();
 }
 
-// Call from a click/tap handler. Asking once is the whole point: if the prompt
-// was dismissed, the person is not asked again.
-export function askNotificationPermission() {
-  if (notificationState() !== "default" || hasAsked()) return;
-  markAsked();
+// What is actually true on this device right now, for the Account line and
+// for anything that has to be honest about closed-app reminders.
+// permission: "default" | "granted" | "denied" | "unsupported"
+// push:       "on" when this device has a live subscription, otherwise "off"
+// reason:     why it is off, when push.js knows
+export async function notificationReport() {
+  const permission = notificationState();
+  const report = {
+    permission,
+    supported: permission !== "unsupported",
+    installed: isInstalled(),
+    iosTab: isIos() && !isInstalled(),
+    subscribed: false,
+    push: "off",
+    reason: null,
+  };
+  if (permission !== "granted") return report;
+
+  if (attempt) await attempt.catch(() => {});
+
+  let subscription = null;
   try {
-    const result = Notification.requestPermission();
-    if (result && typeof result.then === "function") {
-      result
-        .then((state) => {
-          if (state === "granted") syncPush();
-        })
-        .catch(() => {});
+    const push = await import("./push.js");
+    subscription = await push.currentSubscription();
+  } catch {
+    // Treated as "no subscription" below.
+  }
+  report.subscribed = !!subscription;
+  if (subscription) {
+    report.push = "on";
+  } else if (lastResult.ok === false) {
+    report.reason = lastResult.reason;
+  }
+  return report;
+}
+
+// The Account control. Asking always comes from a real tap. If the permission
+// is already granted, this doubles as "try closed-app reminders again".
+export async function requestNotifications() {
+  if (notificationState() === "default") {
+    try {
+      const state = await Notification.requestPermission();
+      recordAsk();
+      if (state === "granted") await syncPush();
+    } catch (err) {
+      console.warn("MindLoop: notification permission failed", err);
     }
+  } else if (notificationState() === "granted") {
+    await syncPush();
+  }
+  return notificationReport();
+}
+
+// Call from a click/tap handler. The app asks at most twice by itself; after
+// that the Account control is the place to change the decision, so nobody is
+// nagged. A dismissed prompt still counts, because it was shown.
+export async function askNotificationPermission() {
+  if (notificationState() !== "default" || autoAsksUsed() >= AUTO_ASK_LIMIT) {
+    return notificationState();
+  }
+  recordAsk();
+  try {
+    const state = await Notification.requestPermission();
+    if (state === "granted") await syncPush();
+    return state;
   } catch (err) {
+    // No prompt appeared at all (not a gesture, blocked context, older iOS).
+    // The Account control can still try later.
     console.warn("MindLoop: notification permission failed", err);
+    return "default";
   }
 }
 
 // Anyone who finished the tour before this existed is asked on their next real
-// tap, once. Taps inside the tour are ignored, because the tour's ending asks
-// directly.
+// tap, once (or twice, per the limit above). Taps inside the tour are ignored,
+// because the tour's ending asks directly.
 export function askOnFirstTap() {
-  if (notificationState() !== "default" || hasAsked()) return;
+  if (notificationState() !== "default" || autoAsksUsed() >= AUTO_ASK_LIMIT) {
+    return;
+  }
   const handler = () => {
     const tour = document.getElementById("tour-tooltip");
     if (tour && !tour.hidden) {
@@ -84,5 +207,19 @@ export function askOnFirstTap() {
   document.addEventListener("pointerdown", handler, {
     once: true,
     passive: true,
+  });
+}
+
+// Back online after a failed attempt (a common case: the app was opened
+// offline, so the subscription could not be saved): try once more, quietly.
+window.addEventListener("online", () => {
+  if (notificationState() === "granted") syncPush();
+});
+
+// The browser can renew a subscription on its own while the app is closed
+// (sw.js). When it says so, save the new endpoint.
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type === "mindloop:push-renewed") syncPush();
   });
 }
