@@ -206,6 +206,12 @@ function buildNotificationStatus() {
   const box = document.createElement("div");
   box.className = "notif-status";
 
+  // Named, so the line is easy to find in Account instead of reading as a
+  // stray hint when notifications are already on and there is nothing to tap.
+  const title = document.createElement("p");
+  title.className = "notif-title";
+  title.textContent = "Notifications on this device";
+
   const status = document.createElement("p");
   status.className = "hint";
   status.id = "reminder-permission-status";
@@ -290,7 +296,7 @@ function buildNotificationStatus() {
     if (!document.hidden) refresh();
   });
 
-  box.append(status, action);
+  box.append(title, status, action);
   return box;
 }
 
