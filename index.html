@@ -244,8 +244,8 @@
                             <h3 class="priority-head">Tomorrow's 3 priorities</h3>
                             <p class="hint priority-head">Write the task, the time you will start it, and the time you
                                 expect to finish. Both times are optional — MindLoop reminds you at the start time,
-                                using the reminder settings in Account. "Done means…" is optional too: one line
-                                that tells tomorrow-you when this task is really finished.</p>
+                                using the reminder settings in Account. "Done means…" is optional too: a short note
+                                (two lines) that tells tomorrow-you when this task is really finished.</p>
                             <p class="hint priority-head">
                                 Write carefully. Once you save, these priorities are locked and can't be changed. You
                                 can still edit your review.
@@ -262,8 +262,8 @@
                                     <input id="e1" type="time" aria-label="Expected finish time for priority 1">
                                     <span id="dur1" class="time-dur" aria-live="polite"></span>
                                 </div>
-                                <input id="d1" type="text" maxlength="120" placeholder="Done means… (optional)"
-                                    aria-label="Definition of done for priority 1">
+                                <textarea id="d1" rows="2" maxlength="200" placeholder="Done means… when this is really finished (optional)"
+                                    aria-label="Definition of done for priority 1"></textarea>
                             </div>
                             <div class="priority-row">
                                 <input id="p2" type="text" maxlength="120" placeholder="Priority 2"
@@ -277,8 +277,8 @@
                                     <input id="e2" type="time" aria-label="Expected finish time for priority 2">
                                     <span id="dur2" class="time-dur" aria-live="polite"></span>
                                 </div>
-                                <input id="d2" type="text" maxlength="120" placeholder="Done means… (optional)"
-                                    aria-label="Definition of done for priority 2">
+                                <textarea id="d2" rows="2" maxlength="200" placeholder="Done means… when this is really finished (optional)"
+                                    aria-label="Definition of done for priority 2"></textarea>
                             </div>
                             <div class="priority-row">
                                 <input id="p3" type="text" maxlength="120" placeholder="Priority 3"
@@ -292,8 +292,8 @@
                                     <input id="e3" type="time" aria-label="Expected finish time for priority 3">
                                     <span id="dur3" class="time-dur" aria-live="polite"></span>
                                 </div>
-                                <input id="d3" type="text" maxlength="120" placeholder="Done means… (optional)"
-                                    aria-label="Definition of done for priority 3">
+                                <textarea id="d3" rows="2" maxlength="200" placeholder="Done means… when this is really finished (optional)"
+                                    aria-label="Definition of done for priority 3"></textarea>
                             </div>
 
                             <button type="submit" class="primary">Save review</button>
