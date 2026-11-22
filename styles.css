@@ -386,6 +386,49 @@ input[type="number"]:focus {
   font-weight: 600;
 }
 
+/* Rows inside "More options": an icon, a plain name and one line saying what
+   will happen, so nothing has to be guessed from a symbol. */
+.plan-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+  padding: 12px;
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  text-align: left;
+}
+.plan-option:hover {
+  border-color: var(--accent);
+}
+.plan-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.plan-option .icon {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.plan-option-words {
+  display: grid;
+  gap: 2px;
+}
+.plan-option-words strong {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.plan-option-hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
 /* Quiet hours (Account): a labelled field per time, so the row keeps its shape
    on a narrow phone and on a wide screen alike. */
 .quiet-hours {
@@ -446,6 +489,22 @@ input[type="number"]:focus {
 .quiet-hours .hint {
   margin-top: 10px;
 }
+/* The notification state in Account: the truth about this device, plus the one
+   tap that can change it. */
+.notif-status {
+  margin-top: 14px;
+}
+.notif-status .hint {
+  margin: 0;
+}
+.notif-status .notif-action {
+  width: 100%;
+  margin-top: 8px;
+  justify-content: center;
+}
+.notif-status .notif-action[hidden] {
+  display: none;
+}
 /* Three actions per row, so a priority never turns into a wall of buttons. */
 .plan-actions,
 .plan-secondary,
@@ -492,9 +551,35 @@ input[type="number"]:focus {
   height: 20px;
 }
 
-/* Plan moves are real, but they are not the answer: keep them quiet. */
+/* A short caption under the icon, shown on phones only. The full label stays
+   in .btn-label for wide screens, in aria-label for screen readers and in
+   data-tip for a mouse. */
+.btn-caption {
+  display: none;
+  max-width: 100%;
+  font-size: 0.68rem;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* A priority has at most three answers: Start, Mark done, Not done. The row
+   stretches to the answers it has, so two of them still fill the width. */
+.plan-actions,
+.reminder-answers {
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+}
+
+/* Plan moves are real, but they are not the answer: they stack as full-width
+   quiet rows with their own words, the way a menu reads. */
+.plan-secondary {
+  grid-template-columns: 1fr;
+}
 .plan-secondary button {
-  min-height: 46px;
+  flex-direction: row;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 10px;
   color: var(--muted);
   border-style: dashed;
 }
@@ -1411,21 +1496,39 @@ html:has(.feedback-overlay) {
 }
 
 @media (max-width: 520px) {
-  /* Icons only, still three per row; the words stay in aria-label and in the
-     mouse-only tooltip above, so nothing is left hovering on a tap. */
+  /* Icon on top, one short word under it, three per row: the icon is quick to
+     find and the caption removes the guessing. The full wording stays in
+     aria-label and in the mouse-only tooltip above. */
   .plan-actions .btn-label,
   .plan-secondary .btn-label,
   .reminder-actions .btn-label {
     display: none;
   }
-  .plan-actions button,
-  .plan-secondary button,
-  .reminder-actions button {
-    min-height: 48px;
-    padding: 0;
+  .plan-actions .btn-caption,
+  .plan-secondary .btn-caption,
+  .reminder-actions .btn-caption {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
   }
+  .plan-actions button,
+  .reminder-actions button {
+    min-height: 58px;
+    padding: 6px 4px;
+    gap: 4px;
+  }
+  /* The quiet moves are one per row, so they keep their full words. */
   .plan-secondary button {
-    min-height: 44px;
+    min-height: 46px;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .plan-secondary .btn-label {
+    display: inline;
+  }
+  .plan-secondary .btn-caption {
+    display: none;
   }
 }
 

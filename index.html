@@ -81,6 +81,11 @@
             <symbol id="i-right" viewBox="0 0 24 24">
                 <polyline points="9 18 15 12 9 6" />
             </symbol>
+            <symbol id="i-more" viewBox="0 0 24 24">
+                <circle cx="5" cy="12" r="1.6" />
+                <circle cx="12" cy="12" r="1.6" />
+                <circle cx="19" cy="12" r="1.6" />
+            </symbol>
             <symbol id="i-copy" viewBox="0 0 24 24">
                 <rect x="9" y="9" width="13" height="13" rx="2" />
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
@@ -147,25 +152,25 @@
 
         <nav class="tabs" id="tabbar" aria-label="Main">
             <button class="tab is-active" data-view="today" data-tip="Today" aria-label="Today">
-                <svg class="icon">
+                <svg class="icon" aria-hidden="true">
                     <use href="#i-sun" />
                 </svg>
                 <span>Today</span>
             </button>
             <button class="tab" data-view="week" data-tip="Week" aria-label="Week">
-                <svg class="icon">
+                <svg class="icon" aria-hidden="true">
                     <use href="#i-chart" />
                 </svg>
                 <span>Week</span>
             </button>
             <button class="tab" data-view="progress" data-tip="Progress" aria-label="Progress">
-                <svg class="icon">
+                <svg class="icon" aria-hidden="true">
                     <use href="#i-target" />
                 </svg>
                 <span>Progress</span>
             </button>
             <button class="tab" data-view="account" data-tip="Account" aria-label="Account">
-                <svg class="icon">
+                <svg class="icon" aria-hidden="true">
                     <use href="#i-user" />
                 </svg>
                 <span>Account</span>
@@ -182,6 +187,8 @@
                     <h2 id="priority-title">Today's priorities</h2>
                     <p id="lock-countdown" class="hint" hidden></p>
                     <ul id="priority-list" class="plan-list"></ul>
+                    <p class="hint plan-hint">Start, Mark done or Not done is the whole answer. Changing the time or
+                        moving a task to another day lives under More options — a move can always be undone.</p>
                 </div>
 
                 <div id="day-insight" class="card insight-card" hidden>
@@ -399,7 +406,7 @@
         </main>
     </div>
 
-    <div id="tour-tooltip" class="tour-tooltip" hidden>
+    <div id="tour-tooltip" class="tour-tooltip" role="dialog" aria-labelledby="tour-title" aria-live="polite" hidden>
         <h3 id="tour-title"></h3>
         <p id="tour-text"></p>
         <div class="tour-actions">

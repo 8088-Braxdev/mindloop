@@ -70,6 +70,10 @@ function build() {
   overlay.setAttribute("aria-modal", "true");
   overlay.setAttribute("aria-labelledby", "feedback-title");
 
+  // Where the keyboard was before the card appeared, so it can go back there.
+  const previousFocus =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
   const card = document.createElement("div");
   card.className = "card feedback-card";
 
@@ -137,10 +141,34 @@ function build() {
     overlay.hidden = true;
     overlay.remove();
     document.removeEventListener("keydown", onKey);
+    if (previousFocus && document.contains(previousFocus)) {
+      previousFocus.focus({ preventScroll: true });
+    }
   }
 
+  // Escape closes; Tab stays inside the card while it is open.
   function onKey(event) {
-    if (event.key === "Escape") close("dismissed");
+    if (event.key === "Escape") {
+      close("dismissed");
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = [...card.querySelectorAll("button, textarea, a[href]")].filter(
+      (el) => !el.disabled && el.offsetParent !== null,
+    );
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!card.contains(document.activeElement)) {
+      event.preventDefault();
+      first.focus();
+    } else if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   send.addEventListener("click", () => {

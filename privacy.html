@@ -21,7 +21,7 @@
         <p><a href="./">Back to MindLoop</a></p>
 
         <h1>Privacy Policy</h1>
-        <p>Last updated: 17 November 2026</p>
+        <p>Last updated: 22 November 2026</p>
 
 <p>MindLoop is a nightly review app. You write what went well, what did not, and your three priorities for
     tomorrow, then you answer honestly about what you did. This page explains what data MindLoop handles and
@@ -76,13 +76,22 @@
             your reviews is stored with it. The reminder message is a short nudge built from the priority's own
             text and start time, and it is delivered by your browser's push service, which necessarily sees the
             device address and the encrypted message.</p>
-        <p>MindLoop asks your browser for notification permission once, by itself, when you finish the tour on your
-            first visit. You can say no, and you can change the decision at any time in your browser's site
-            settings. Refusing does not stop the reminder card from appearing inside the app. Deleting this device's
-            subscription, blocking notifications, or deleting your account removes the stored subscription.</p>
-        <p>You can also set quiet hours in Account. During those hours MindLoop keeps your phone silent but still
-            shows the reminder card inside the app. Quiet hours are kept on your device, and a copy is stored with
-            that device's push subscription so the reminder is not sent during them.</p>
+        <p>MindLoop asks your browser for notification permission when you finish the tour on your first visit, and
+            Account always has an "Allow notifications" control, so the ask is never hidden away. Your browser
+            decides whether to show its own prompt, and MindLoop never turns notifications on without that
+            answer. You can say no, and you can change the decision at any time in your browser's site settings.
+            Account tells you plainly whether closed-app reminders are working on the device you are using.
+            Refusing does not stop the reminder card from appearing inside the app.</p>
+        <p>Because the server sends closed-app reminders, it keeps a small log of them: your account ID, which
+            priority the reminder was for (its position in that day's plan) and the date. The log contains none of
+            your text. It exists so the same reminder is never sent twice, and old rows are deleted automatically.
+            Signing out on this device, deleting that device's subscription, blocking notifications, or deleting
+            your account removes the stored subscription.</p>
+        <p>You can also set quiet hours in Account. During those hours MindLoop sends no notification to that
+            device, including closed-app reminders, while the reminder card still appears inside the app. Quiet
+            hours are kept on your device, and a copy is stored with that device's push subscription so the server
+            does not send a reminder during them. They only silence MindLoop: they do not change your phone's Do
+            Not Disturb setting and do not mute other apps.</p>
         <p>A "Done means…" line, a completion note and the reason you pick when moving a priority are part of your
             review: they are saved to your account like the rest of it, and they are only sent to the AI provider
             when you ask for an AI insight, as described above.</p>

@@ -35,6 +35,11 @@ function fitToVisualViewport(overlay) {
 function openSheet({ title, text, body, buttons, onOpen }) {
   return new Promise((resolve) => {
     if (current) current(null);
+    // Remember where the keyboard was, so closing the sheet puts it back.
+    const previousFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
 
     const overlay = document.createElement("div");
     overlay.className = "sheet-overlay";
@@ -66,11 +71,38 @@ function openSheet({ title, text, body, buttons, onOpen }) {
       unfixViewport();
       overlay.remove();
       current = null;
+      if (previousFocus && document.contains(previousFocus)) {
+        previousFocus.focus({ preventScroll: true });
+      }
       resolve(value);
     }
 
+    // Escape closes. Tab stays inside the sheet, so a keyboard or a screen
+    // reader cannot wander into the page behind the dialog.
     function onKey(event) {
-      if (event.key === "Escape") finish(null);
+      if (event.key === "Escape") {
+        finish(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [
+        ...sheet.querySelectorAll(
+          'button, input, textarea, select, a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((el) => !el.disabled && el.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!sheet.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
 
     for (const button of buttons) {
@@ -94,6 +126,11 @@ function openSheet({ title, text, body, buttons, onOpen }) {
     const unfixViewport = fitToVisualViewport(overlay);
     current = finish;
     if (onOpen) onOpen();
+    else {
+      // Nothing to type into: start on the sheet's first control.
+      const first = sheet.querySelector("input, textarea, button");
+      if (first) first.focus({ preventScroll: true });
+    }
   });
 }
 
@@ -204,6 +241,65 @@ export function askNote({
       { label: "Skip", onClick: (finish) => finish("") },
     ],
     onOpen: () => input.focus({ preventScroll: true }),
+  });
+}
+
+/* ---------- The quiet plan moves of one priority (spec §4) ----------
+   Changing the start time and moving a task to another day are edits to the
+   plan, not answers. Big apps keep edits behind one labelled control, so they
+   open here, each with a plain name and one line saying what will happen — no
+   arrow a person has to guess at. */
+
+export function askPlanOptions({ text = "" } = {}) {
+  const list = document.createElement("div");
+  list.className = "sheet-options";
+
+  // Only one sheet is open at a time and openSheet keeps its own close
+  // function in `current`, so a row always resolves the sheet below.
+  const choose = (value) => {
+    if (current) current(value);
+  };
+
+  const row = (iconId, label, hint, value) => {
+    const node = document.createElement("button");
+    node.type = "button";
+    node.className = "plan-option";
+    node.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg>`;
+
+    const words = document.createElement("span");
+    words.className = "plan-option-words";
+    const name = document.createElement("strong");
+    name.textContent = label;
+    const detail = document.createElement("span");
+    detail.className = "plan-option-hint";
+    detail.textContent = hint;
+    words.append(name, detail);
+
+    node.append(words);
+    node.addEventListener("click", () => choose(value));
+    return node;
+  };
+
+  list.append(
+    row(
+      "i-clock",
+      "Change start time",
+      "Move it earlier or later today, or remove the time.",
+      "time",
+    ),
+    row(
+      "i-calendar",
+      "Move to another day",
+      "It leaves today's count. You can undo it straight away.",
+      "postpone",
+    ),
+  );
+
+  return openSheet({
+    title: "More options",
+    text,
+    body: list,
+    buttons: [{ label: "Close", className: "primary", onClick: (finish) => finish(null) }],
   });
 }
 
