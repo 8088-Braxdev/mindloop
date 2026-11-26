@@ -227,8 +227,31 @@ function buildNotificationStatus() {
   action.type = "button";
   action.className = "plan-btn notif-action";
 
+  // The one check the app cannot do alone: ask the server to send right now.
+  // It tells the person which half is broken — the saved device and keys, or
+  // the 5-minute schedule that sends the real reminders.
+  const test = document.createElement("button");
+  test.type = "button";
+  test.className = "plan-btn notif-action notif-test";
+  test.textContent = "Send a test notification";
+  test.hidden = true;
+
+  const testResult = document.createElement("p");
+  testResult.className = "hint notif-test-result";
+  testResult.setAttribute("role", "status");
+  testResult.hidden = true;
+
+  const setTestResult = (text) => {
+    testResult.textContent = text || "";
+    testResult.hidden = !text;
+  };
+
   const paint = (report) => {
     action.disabled = false;
+    test.disabled = false;
+    // Only a device that is allowed to notify can receive a test at all.
+    test.hidden = report.permission !== "granted";
+    if (test.hidden) setTestResult("");
     if (report.permission === "unsupported") {
       action.hidden = true;
       status.textContent = report.iosTab
@@ -250,10 +273,20 @@ function buildNotificationStatus() {
       return;
     }
     if (report.push === "on") {
-      // Nothing left to tap: a button here would read like a problem.
+      // Nothing left to tap: a button here would read like a problem. The test
+      // below is a check, not a fix, so it stays available.
       action.hidden = true;
       status.textContent =
-        "Notifications are on for this device. MindLoop can send one reminder when a priority's start time arrives, even while the app is closed. Delivery still depends on this phone, its connection and the browser's push service.";
+        "Notifications are on for this device, and your account has this device saved. MindLoop can send one reminder when a priority's start time arrives, even while the app is closed. Delivery still depends on this phone, its connection and the browser's push service.";
+      return;
+    }
+    if (report.saved === false) {
+      // The browser has a subscription, but the account does not. Saying "on"
+      // here would promise a reminder the server cannot send.
+      action.hidden = false;
+      action.textContent = "Try again";
+      status.textContent =
+        "Notifications are allowed, but this device is not saved to your account, so MindLoop's server has nowhere to send a closed-app reminder. Tap Try again. If it keeps happening, the push tables or keys on the server are not set up (see PUSH.md).";
       return;
     }
     action.hidden = false;
@@ -282,6 +315,62 @@ function buildNotificationStatus() {
       });
   };
 
+  test.addEventListener("click", () => {
+    test.disabled = true;
+    setTestResult("Asking the server to send one test notification…");
+    import("./push.js")
+      .then((push) => push.testPush())
+      .then((result) => {
+        test.disabled = false;
+        if (result.ok && result.sent > 0) {
+          const many =
+            result.devices > 1
+              ? `${result.devices} devices on this account`
+              : "this device";
+          let text = `The server sent the test just now to ${many}.`;
+          if (result.failures?.length) {
+            text += ` ${result.failures.length} of them could not be reached.`;
+          }
+          text +=
+            " If nothing appeared, this phone or browser held it back — not MindLoop's schedule. On iPhone, leave MindLoop before it arrives: iOS decides when to show it. If this test arrives but reminders at a priority's start time never do, the 5-minute schedule is the part that is not running.";
+          setTestResult(text);
+          return;
+        }
+        const missing = result.missing?.length
+          ? ` It is missing: ${result.missing.join(", ")}.`
+          : "";
+        const why =
+          {
+            setup: `The server is not set up for closed-app reminders yet.${missing}`,
+            "no-subscription":
+              "The server has no saved device for this account, so nothing can be sent. Tap Try again above to save this device first.",
+            server: "The server could not read this account's devices.",
+            signin:
+              "This device's session has expired. Sign in again, then try the test.",
+            permission:
+              "Notifications are not allowed on this device, so nothing can be shown.",
+            network:
+              "This device could not reach the server. Check the connection and try again.",
+          }[result.code] ||
+          `The server answered with ${result.http || "an error"}.`;
+        let text = why;
+        const failures = result.failures || [];
+        const gone = failures.filter((f) => f.status === "gone").length;
+        if (gone) {
+          text += ` The push service said ${gone === 1 ? "this device's subscription is" : `${gone} of these subscriptions are`} gone (410), so ${gone === 1 ? "it was" : "they were"} removed. Tap Try again above to make a new one.`;
+        }
+        const refused = failures.find((f) => f.status && f.status !== "gone");
+        if (refused) {
+          text += ` The push service refused the send (${refused.status}).`;
+        }
+        setTestResult(text);
+      })
+      .catch(() => {
+        test.disabled = false;
+        setTestResult("The test could not be sent from this device. Try again.");
+      });
+  });
+
   action.addEventListener("click", () => {
     action.disabled = true;
     status.textContent = "Checking this device…";
@@ -303,7 +392,7 @@ function buildNotificationStatus() {
     if (!document.hidden) refresh();
   });
 
-  box.append(title, status, action);
+  box.append(title, status, action, test, testResult);
   return box;
 }
 
