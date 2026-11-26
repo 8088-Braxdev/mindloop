@@ -20,6 +20,12 @@ const WINDOW_MIN = 10; // due = start time reached within the last 10 minutes
 // the same values the app offers in the night review.
 const VALID_LEAD = new Set([0, 5, 10, 15]);
 const MAX_SUBSCRIPTIONS = 500; // one run stays a small, quick job
+// The push service holds a message while the device is offline or asleep and
+// delivers it when the connection returns, but only for this long. A reminder
+// is worth more than an hour's wait (the phone may be in a pocket on a train),
+// and after half a day the moment has passed, so the app's own card is the
+// honest fallback.
+const RETENTION_SECONDS = 12 * 60 * 60;
 
 const fail = (res, status, code, message) =>
   res.status(status).json({ status: "error", code, message });
@@ -78,10 +84,10 @@ function inQuietHours(subscription, minutes) {
 function reminderPayload(item, planDate, ahead) {
   const early = ahead > 0;
   return {
-    title: early ? "Kumbuka: unaanza hivi karibuni" : "Muda wa kuanza umefika",
+    title: early ? "Heads-up: starting soon" : "Time to start",
     body: early
-      ? `"${item.text}" — unaanza saa ${item.time} (dakika ${ahead} zijazo). Dakika 5 tu za kuanza zinatosheleza.`
-      : `"${item.text}" — ${item.time}. Dakika 5 tu za kuanza zinatosheleza.`,
+      ? `"${item.text}" starts at ${item.time} (in ${ahead} min). Five minutes of starting is enough.`
+      : `"${item.text}" — ${item.time}. Five minutes of starting is enough.`,
     tag: `mindloop-start-${planDate}-${item.index}`,
     url: "./",
   };
@@ -213,9 +219,10 @@ export default async function handler(req, res) {
             keys: { p256dh: subscription.p256dh, auth: subscription.auth },
           },
           JSON.stringify(reminderPayload(item, planDate, ahead)),
-          // Long enough that a phone which was briefly offline still gets the
-          // nudge when it reconnects, instead of the push service dropping it.
-          { TTL: 3600 },
+          // Held by the push service while the device is offline, so the
+          // nudge arrives on reconnect instead of being dropped. "high" asks
+          // the phone to wake for it rather than wait for its next batching.
+          { TTL: RETENTION_SECONDS, urgency: "high" },
         );
         result.sent += 1;
       } catch (err) {

@@ -137,8 +137,15 @@ subscription alone: it now asks the account whether this device's row exists
 - A reminder arrives within 10 minutes of the start time, not at the exact
   second: the scheduler runs every 5 minutes and the sender accepts a small
   window so a slow or missed run does not lose the reminder.
-- A phone that is off, offline, or has the app's notifications blocked gets no
-  push. The card is still there when the app opens.
+- A device that is offline or asleep is not skipped: the reminder is sent with a
+  12-hour retention (`TTL`), so the push service keeps it and delivers it when
+  the connection returns. A reminder older than that is dropped by the push
+  service; the card in the app still shows the unanswered priority.
+- A phone that is off, or has the app's notifications blocked, gets no push. The
+  card is still there when the app opens.
+- The notification words are English, like the rest of the app: "Time to start"
+  (or "Heads-up: starting soon" with a lead), the task's own words, and its
+  start time. A finish-time heads-up reads "Your finish time has arrived".
 - Quiet hours silence push as well, using the hours saved on that device.
 - One reminder per priority per day on **each** device that allowed
   notifications, so a phone and a laptop both ring once. `push_log` holds one

@@ -277,7 +277,7 @@ function buildNotificationStatus() {
       // below is a check, not a fix, so it stays available.
       action.hidden = true;
       status.textContent =
-        "Notifications are on for this device, and your account has this device saved. MindLoop can send one reminder when a priority's start time arrives, even while the app is closed. Delivery still depends on this phone, its connection and the browser's push service.";
+        "Notifications are on for this device, and your account has this device saved. MindLoop sends one reminder when a priority's start time arrives — usually within 10 minutes — even while the app is closed. If this device is offline or asleep at that moment, the push service holds the reminder and delivers it when the connection returns, for up to 12 hours; after that it can be lost, and the reminder card is still waiting inside the app. Delivery also depends on this phone or computer, its notification settings and the browser's push service.";
       return;
     }
     if (report.saved === false) {
@@ -332,7 +332,7 @@ function buildNotificationStatus() {
             text += ` ${result.failures.length} of them could not be reached.`;
           }
           text +=
-            " If nothing appeared, this phone or browser held it back — not MindLoop's schedule. On iPhone, leave MindLoop before it arrives: iOS decides when to show it. If this test arrives but reminders at a priority's start time never do, the 5-minute schedule is the part that is not running.";
+            " If this device is offline it will arrive when the connection returns, up to 12 hours later, just like a reminder. If nothing appeared at all, this phone or browser held it back — not MindLoop's schedule. On iPhone, leave MindLoop before it arrives: iOS decides when to show it. If this test arrives but reminders at a priority's start time never do, the 5-minute schedule is the part that is not running.";
           setTestResult(text);
           return;
         }
@@ -463,7 +463,7 @@ function buildSettings() {
   const scope = document.createElement("p");
   scope.className = "hint";
   scope.textContent =
-    "This is the default for every priority with a start time. Each priority can pick its own reminder in the night review's \"Remind me\" row. Closed-app reminders are sent by MindLoop's scheduler every few minutes, so they can arrive a little after the moment you chose; each device you signed in on gets its own, with its own quiet hours.";
+    "This is the default for every priority with a start time. Each priority can pick its own reminder in the night review's \"Remind me\" row. Closed-app reminders are worked out from each device's own clock by MindLoop's scheduler, which runs every 5 minutes, so one can arrive up to 10 minutes after the moment you chose. A device that is offline or asleep is not skipped: the push service holds the reminder and delivers it when the connection returns, for up to 12 hours. Each device you signed in on gets its own reminder, with its own quiet hours.";
 
   wrap.append(
     head,
@@ -593,8 +593,8 @@ function notifyExpectedFinish(items, sourceDate, planDate, now, store) {
     store[id] = { ...record, sourceDate, endNotifiedAt: Date.now() };
     writeStore(store);
     showDeviceNotification(
-      "Muda wa kumaliza umefika",
-      `"${item.text}" — ulipanga kumaliza saa ${item.endTime}. Unaendelea?`,
+      "Your finish time has arrived",
+      `"${item.text}" — you planned to finish by ${item.endTime}. Still going?`,
       `mindloop-finish-${item.time}-${item.index}`,
     );
   }
@@ -625,9 +625,9 @@ function reminderText(item, now) {
     when = `You planned "${item.text}" for ${item.time} (${Math.abs(minutes)} min ago).`;
   }
   return {
-    title: "Muda wako wa kuanza umefika",
+    title: "It's time to start",
     when,
-    note: "Huhitaji kumaliza kila kitu sasa — dakika 5 tu za kuanza zinatosheleza.",
+    note: "You do not have to finish everything now — five minutes of starting is enough.",
   };
 }
 
@@ -742,10 +742,10 @@ export function renderReminders() {
   if (!record.notifiedAt) {
     const lead = leadFor(item);
     showDeviceNotification(
-      lead > 0 ? "Kumbuka: unaanza hivi karibuni" : "Muda wa kuanza umefika",
+      lead > 0 ? "Heads-up: starting soon" : "Time to start",
       lead > 0
-        ? `"${item.text}" — unaanza saa ${item.time} (dakika ${lead} zijazo). Dakika 5 tu za kuanza zinatosheleza.`
-        : `"${item.text}" — ${item.time}. Dakika 5 tu za kuanza zinatosheleza.`,
+        ? `"${item.text}" starts at ${item.time} (in ${lead} min). Five minutes of starting is enough.`
+        : `"${item.text}" — ${item.time}. Five minutes of starting is enough.`,
       `mindloop-start-${item.time}-${item.index}`,
     );
     store[id] = { ...record, sourceDate, notifiedAt: Date.now() };

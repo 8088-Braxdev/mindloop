@@ -28,11 +28,16 @@ const fail = (res, status, code, message, extra = {}) =>
   res.status(status).json({ status: "error", code, message, ...extra });
 
 const testPayload = {
-  title: "Mtihani wa MindLoop",
-  body: "Ukipata hii, simu hii inaweza kupokea kumbusho wakati app imefungwa. Ilitumwa sasa hivi.",
+  title: "MindLoop test notification",
+  body: "If you can read this, this device can receive a reminder while the app is closed. It was sent just now.",
   tag: "mindloop-test",
   url: "./",
 };
+
+// Same retention as a real reminder (api/push-send.js), so a test sent while
+// the phone is offline arrives when it reconnects — exactly what a reminder
+// would do. A test with a shorter life would prove less than it claims.
+const RETENTION_SECONDS = 12 * 60 * 60;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -104,7 +109,7 @@ export default async function handler(req, res) {
           keys: { p256dh: subscription.p256dh, auth: subscription.auth },
         },
         JSON.stringify(testPayload),
-        { TTL: 600 },
+        { TTL: RETENTION_SECONDS, urgency: "high" },
       );
       sent += 1;
     } catch (err) {
