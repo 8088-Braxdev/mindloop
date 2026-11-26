@@ -1039,3 +1039,83 @@ export function growthTimeline(entries, todayKey, now = new Date()) {
   events.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   return { events, first };
 }
+
+/* ---------- Insight language (spec §3) ---------- */
+
+// The language of an insight comes from the person's own words, so it is
+// decided here, once, instead of being left to the model among English labels.
+// Swahili and English share an alphabet, so the signals are function words and
+// the common Swahili verb prefixes ("nimefanya", "nilifanya"). A task name on
+// its own ("gym", "email") counts for neither, which keeps a short English
+// review English and a genuine Swahili review Swahili.
+const SWAHILI_WORDS = new Set([
+  "na", "ya", "kwa", "ni", "la", "wa", "za", "cha", "vya", "hii", "hiyo",
+  "hilo", "hizo", "yake", "yangu", "wangu", "zangu", "lake", "lako", "wake",
+  "wao", "yetu", "yako", "kitu", "vitu", "mtu", "watu", "siku", "wiki",
+  "mwezi", "mwaka", "leo", "jana", "kesho", "asubuhi", "mchana", "jioni",
+  "usiku", "muda", "saa", "dakika", "kazi", "shule", "chuo", "nyumbani",
+  "ofisini", "mkutano", "simu", "barua", "fedha", "pesa", "chakula", "maji",
+  "usingizi", "uchovu", "njaa", "homa", "mazoezi", "rafiki", "familia",
+  "watoto", "mzigo", "shida", "sababu", "nzuri", "vizuri", "vibaya", "mbaya",
+  "ngumu", "rahisi", "sana", "kidogo", "zaidi", "bado", "tena", "pia", "hata",
+  "kama", "kwamba", "ili", "hivyo", "kisha", "baada", "kabla", "lakini",
+  "basi", "labda", "kweli", "polepole", "haraka", "ndio", "hapana", "sijui",
+  "nilifanya", "nilimaliza", "nilianza", "niliweza", "sikuweza", "nimefanya",
+  "nimeanza", "nimekamilisha", "nimekosa", "nimekuwa", "nilikuwa", "alikuwa",
+  "nina", "tuna", "una", "ana", "wana", "kufanya", "kufika", "kwenda",
+  "kuwa", "kuandika", "kusoma", "kusikiliza", "kumaliza", "kuanza", "nita",
+  "nitafanya", "tuta", "atafanya", "wasiwasi", "furaha", "huzuni", "hasira",
+  "woga", "tabu", "bahati", "nguvu", "akili", "moyo", "sawa", "poa",
+]);
+
+const ENGLISH_WORDS = new Set([
+  "the", "and", "to", "my", "i", "was", "is", "it", "that", "this", "but",
+  "with", "for", "of", "in", "on", "at", "not", "did", "do", "have", "had",
+  "then", "when", "because", "today", "yesterday", "tomorrow", "work",
+  "meeting", "gym", "tired", "sleep", "done", "finished", "started", "could",
+  "would", "should", "a", "an", "so", "very", "more", "less", "time", "day",
+  "week", "morning", "evening", "night", "after", "before", "about", "from",
+  "they", "we", "he", "she", "you", "me", "went", "got", "were", "been",
+]);
+
+// A word starting with one of these is Swahili even when the whole word is not
+// in the list above. Deliberately narrow: "una…" would catch "unable" and
+// "ana…" would catch "analysis".
+const SWAHILI_PREFIXES = [
+  "nime", "nili", "tuli", "wame", "haku", "sij", "hakuna", "nitak", "tutak",
+  "anak", "unak", "alik", "walik", "kumaliza", "kufanya", "kwenda", "kuwa",
+  "kusoma", "kuandika", "kununua", "nilipata", "nimepata", "sikuwa",
+];
+
+// "sw", "en", or null when the writing does not say. The caller defaults to
+// English, which is the language of the app's own words.
+export function detectInsightLanguage(rows) {
+  const text = (rows || [])
+    .map((row) =>
+      [
+        row?.wins,
+        row?.challenges,
+        row?.lessons,
+        (row?.priorities || []).map((p) => (p ? p.text : "")).join(" "),
+      ]
+        .filter(Boolean)
+        .join(" "),
+    )
+    .join(" ")
+    .toLowerCase();
+
+  const words = text.match(/[a-z']+/g) || [];
+  let swahili = 0;
+  let english = 0;
+  for (const word of words) {
+    if (SWAHILI_WORDS.has(word)) swahili += 1;
+    else if (ENGLISH_WORDS.has(word)) english += 1;
+    else if (SWAHILI_PREFIXES.some((prefix) => word.startsWith(prefix)))
+      swahili += 2;
+  }
+
+  // One stray word is not a language: two hits are needed before naming it.
+  if (swahili > english) return swahili >= 2 ? "sw" : null;
+  if (english > swahili) return "en";
+  return null;
+}

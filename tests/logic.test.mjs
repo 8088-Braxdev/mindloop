@@ -15,6 +15,7 @@ import {
   windowStats,
   plannedMinutes,
   addMinutesToTime,
+  detectInsightLanguage,
 } from "../js/logic.js";
 
 const NOW = new Date(2026, 10, 8, 12, 0, 0); // Sunday 8 November 2026, noon
@@ -272,4 +273,50 @@ test("progress answers come from the recorded week, not from guesses", () => {
   const week = answers.find((a) => a.id === "week");
   assert.match(week.answer, /4 of 7/);
   assert.ok(answers.every((a) => a.answer.length > 0));
+});
+
+/* ---------- Spec §3: the insight follows the language of the reviews ---------- */
+
+test("a Swahili review asks for a Swahili insight", () => {
+  const rows = [
+    entry("2026-11-07", [priority("Kupanga mkutano na timu")], {
+      wins: "Nimefanya kazi nzuri leo na nilimaliza ripoti",
+      challenges: "Nilikuwa na uchovu sana lakini nilifanya kazi",
+      lessons: "Kesho nitaanza mapema",
+    }),
+  ];
+  assert.equal(detectInsightLanguage(rows), "sw");
+});
+
+test("an English review stays English", () => {
+  const rows = [
+    entry("2026-11-07", [priority("Plan the meeting")], {
+      wins: "Finished the report and the gym",
+      challenges: "I was tired but got it done",
+      lessons: "Start earlier tomorrow",
+    }),
+  ];
+  assert.equal(detectInsightLanguage(rows), "en");
+});
+
+test("one borrowed word does not change the language", () => {
+  const rows = [
+    entry("2026-11-07", [priority("Email")], {
+      wins: "Sent the report",
+      challenges: "Slow laptop",
+      lessons: "Charge it earlier",
+    }),
+  ];
+  const detected = detectInsightLanguage(rows);
+  assert.ok(detected === "en" || detected === null);
+});
+
+test("writing that says nothing about language leaves it open", () => {
+  assert.equal(detectInsightLanguage([]), null);
+  assert.equal(
+    detectInsightLanguage([
+      { wins: "", challenges: "", lessons: "", priorities: [{ text: "Email" }] },
+    ]),
+    null,
+  );
 });
