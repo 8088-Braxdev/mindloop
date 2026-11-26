@@ -11,7 +11,7 @@ How the parts fit:
 | --- | --- | --- |
 | Browser | `js/push.js` | Turns an already-granted notification permission into a Web Push subscription, and keeps that device's time zone and quiet hours on the server. No new permission prompt: the app still asks once, when the first tour ends. |
 | Key | `api/push-key.js` | Returns `VAPID_PUBLIC_KEY` to the browser. The private key never leaves Vercel. |
-| Sender | `api/push-send.js` | Reads subscriptions, works out each device's local date and clock, and sends the reminder for priorities whose start time (or that priority's own "Remind me" lead) has arrived and that still have no answer. `push_log` guarantees one send per task per day. |
+| Sender | `api/push-send.js` | Reads subscriptions, works out each device's local date and clock, and sends the reminder for priorities whose start time (or that priority's own "Remind me" lead) has arrived and that still have no answer. `push_log` guarantees one send per task per day **on each device**. |
 | Worker | `sw.js` | `push` handler shows the notification; tapping it opens the app. |
 | Database | `supabase/push.sql` | `push_subscriptions` (private per person, RLS) and `push_log` (server only). |
 | Scheduler | Supabase `pg_cron` | Vercel's free plan only allows daily crons, so the 5-minute ping comes from Supabase instead. |
@@ -118,6 +118,15 @@ The test is sent **directly**, not by the 5-minute schedule. So:
 the part that is not running. Check `select * from cron.job_run_details order by start_time desc limit 20;` and re-run the `cron.schedule` SQL in section 3.
 - test fails → the problem is before the schedule; fix the row above first.
 
+One more difference, and it used to be a trap: the test does not write
+`push_log`, so it reaches every device, while a reminder writes there to avoid
+sending twice. That key was once per task and day only, so with a phone and a
+laptop the first device in the list took the row and every other device was
+skipped — the phone stayed silent while the test rang it. `push_log.task_key`
+now starts with the device id (`<subscription id>#<plan date>#<task index>`), so
+each device gets its own single reminder. Rows written before this fix keep the
+old shape and simply never match again, which is harmless.
+
 This is also why Account no longer says "Notifications are on" for a browser
 subscription alone: it now asks the account whether this device's row exists
 (RLS lets a person read their own), so a silently failed save shows as
@@ -131,6 +140,9 @@ subscription alone: it now asks the account whether this device's row exists
 - A phone that is off, offline, or has the app's notifications blocked gets no
   push. The card is still there when the app opens.
 - Quiet hours silence push as well, using the hours saved on that device.
+- One reminder per priority per day on **each** device that allowed
+  notifications, so a phone and a laptop both ring once. `push_log` holds one
+  row per device, so the same reminder is never sent twice to the same one.
 - Closed-app reminders use each priority's start time and that priority's own
   "Remind me" choice (Account's setting is the default when the priority has
   none). The sender's window grows by that lead, so a 15-minute lead can arrive

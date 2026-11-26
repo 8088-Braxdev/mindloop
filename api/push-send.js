@@ -5,7 +5,7 @@
 // Called by a scheduler every 5 minutes (see PUSH.md: Supabase pg_cron, because
 // Vercel's free plan only allows daily crons). It is safe to call at any time
 // and safe to call twice: push_log's unique key means one reminder per task per
-// local day, even if two runs overlap.
+// local day for each device, even if two runs overlap.
 //
 // What it never does: guess. A reminder is only sent for a priority the person
 // wrote, with a start time, that still has no answer, on the day it is planned
@@ -194,10 +194,14 @@ export default async function handler(req, res) {
       if (late < 0 || late >= lead + WINDOW_MIN) continue;
       const ahead = start - now.minutes;
 
-      // One reminder per task per day: the insert is the lock.
+      // One reminder per task per day *per device*: the insert is the lock.
+      // The device id is part of the key because a person may have a phone and
+      // a laptop, and a key per task alone let whichever device came first in
+      // the list take the row and silence every other one (23505 -> continue).
+      const taskKey = `${subscription.id}#${planDate}#${item.index}`;
       const { error: logError } = await admin.from("push_log").insert({
         user_id: subscription.user_id,
-        task_key: `${planDate}#${item.index}`,
+        task_key: taskKey,
         fire_date: now.dateKey,
       });
       if (logError) continue; // already sent (23505), or the log is unavailable
@@ -231,7 +235,7 @@ export default async function handler(req, res) {
             .from("push_log")
             .delete()
             .eq("user_id", subscription.user_id)
-            .eq("task_key", `${planDate}#${item.index}`)
+            .eq("task_key", taskKey)
             .eq("fire_date", now.dateKey);
           if (clearError) {
             console.error(
