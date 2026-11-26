@@ -276,6 +276,9 @@ test("progress answers come from the recorded week, not from guesses", () => {
 });
 
 /* ---------- Spec §3: the insight follows the language of the reviews ---------- */
+// detectInsightLanguage only names Swahili and English; null means "the app does
+// not name a language" and the insight prompt then follows whatever language the
+// entries are in, so no language is excluded.
 
 test("a Swahili review asks for a Swahili insight", () => {
   const rows = [
@@ -309,6 +312,31 @@ test("one borrowed word does not change the language", () => {
   ];
   const detected = detectInsightLanguage(rows);
   assert.ok(detected === "en" || detected === null);
+});
+
+test("a language outside the app's own two is left to automatic detection", () => {
+  // The app must not force English or Swahili: any other language is passed on
+  // as "no language named" and the model answers in the language it reads.
+  const french = entry("2026-11-07", [priority("Finir le rapport")], {
+    wins: "J'ai fini le rapport et je suis alle a la salle de sport",
+    challenges: "J'etais fatigue mais j'ai continue",
+    lessons: "Commencer plus tot demain",
+  });
+  assert.equal(detectInsightLanguage([french]), null);
+
+  const arabic = entry("2026-11-08", [priority("كتابة التقرير")], {
+    wins: "أنهيت التقرير وذهبت إلى النادي",
+    challenges: "كنت متعبا لكنني أكملت",
+    lessons: "سأبدأ مبكرا غدا",
+  });
+  assert.equal(detectInsightLanguage([arabic]), null);
+
+  const chinese = entry("2026-11-09", [priority("写报告")], {
+    wins: "我完成了报告并去了健身房",
+    challenges: "我很累但还是完成了",
+    lessons: "明天早点开始",
+  });
+  assert.equal(detectInsightLanguage([chinese]), null);
 });
 
 test("writing that says nothing about language leaves it open", () => {

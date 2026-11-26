@@ -4,8 +4,8 @@
 // new script tag for a feature to work.
 //
 // Insight language is Automatic on purpose: new AI insights follow the
-// language the person writes their reviews in. There is no English/Kiswahili
-// switch, and saved reviews or old insights are never translated.
+// language the person writes their reviews in, any language at all. There is no
+// language switch, and saved reviews or old insights are never translated.
 
 function loadOptionalModules() {
   import("./reminders.js").catch((err) => {

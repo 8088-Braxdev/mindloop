@@ -1087,8 +1087,12 @@ const SWAHILI_PREFIXES = [
   "kusoma", "kuandika", "kununua", "nilipata", "nimepata", "sikuwa",
 ];
 
-// "sw", "en", or null when the writing does not say. The caller defaults to
-// English, which is the language of the app's own words.
+// "sw", "en", or null when this small word list cannot name the language.
+// null is not "English": it means the app does not name a language, and the
+// caller tells the model to follow whatever language the entries are actually
+// written in. Only Swahili and English are recognised here because they are the
+// two languages of the app; every other language (French, Arabic, Hindi,
+// Chinese, ...) arrives as null and is detected by the model from the text.
 export function detectInsightLanguage(rows) {
   const text = (rows || [])
     .map((row) =>

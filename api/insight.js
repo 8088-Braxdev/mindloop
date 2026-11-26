@@ -23,10 +23,13 @@ const REASONS = {
 };
 
 // Insight language is Automatic (spec §3): insights follow the language the
-// person writes their reviews in, so there is no separate preference. That is
-// decided here from their own words (`detectInsightLanguage`) and stated in the
-// prompt, because asking the model to "pick the language of the entries" lost
-// to the English labels (JSON keys, dates, "done", "low energy") every time.
+// person writes their reviews in, so there is no separate preference and no
+// list of allowed languages. `detectInsightLanguage` names Swahili or English
+// only when it is sure; every other language reaches the model as "auto", where
+// the rule tells it to work the language out from the entries and answer in it.
+// The rule names the traps explicitly (JSON keys, dates, "done", "low energy")
+// because asking the model to "pick the language of the entries" lost to those
+// English labels every time.
 
 /* ---------- Small helpers ---------- */
 
@@ -102,13 +105,14 @@ function entriesJson(rows) {
 
 const LANGUAGE_RULES = {
   sw: "7. The person wrote these reviews in Swahili. Write EVERY text value (headline, went_well, pattern, suggestion, data_note) in Swahili. The dates and the JSON keys are English only because the app is English: they do not change the language of the answer, and English text is not an acceptable answer.",
-  en: "7. The person wrote these reviews in English. Write every text value in English.",
-  unknown:
-    "7. The person's writing does not make one language clear. Write every text value in English unless the entries are clearly Swahili.",
+  en: "7. The person wrote these reviews in English. Write EVERY text value (headline, went_well, pattern, suggestion, data_note) in English. The dates and the JSON keys are English too; they are the app's words, not evidence about the person's language.",
+  // No language is off limits: the model reads the person's own words and
+  // answers in whatever language they are actually in.
+  auto: "7. The person may write in ANY language, so never assume English. Read ENTRIES and work out which language the person wrote most of their own words in; it can be any language at all (for example French, Spanish, Portuguese, German, Italian, Dutch, Arabic, Hindi, Chinese, Japanese, Korean, Russian, Turkish, Indonesian, Polish, Swahili). Write EVERY text value (headline, went_well, pattern, suggestion, data_note) in exactly that language, and never translate the answer into English. The dates, the JSON keys and the English labels in FACTS (\"done\", \"not done\", \"low energy\", \"none\") are the app's words, not the person's: they are not evidence that the person writes English. Only when the entries hold too little writing to tell the language, answer in English.",
 };
 
 function languageRule(language) {
-  return LANGUAGE_RULES[language] || LANGUAGE_RULES.unknown;
+  return LANGUAGE_RULES[language] || LANGUAGE_RULES.auto;
 }
 
 function systemPrompt(language) {
@@ -431,7 +435,8 @@ export default async function handler(req, res) {
       );
     claimId = claim.id;
 
-    // 8. Call Groq in the language the person actually wrote in.
+    // 8. Call Groq in the language the person actually wrote in, named here
+    // only when the app is sure, otherwise worked out by the model (auto).
     const language = detectInsightLanguage(rows);
     const userMessage = buildUserMessage(type, key, facts, rows);
     calledGroq = true;
