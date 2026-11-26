@@ -98,6 +98,31 @@ with `CRON_SECRET` set to the same value as `PUSH_CRON_SECRET`.
    10-minute window and no second one afterwards.
 5. Check the send: `select * from public.push_log order by created_at desc limit 5;`
 
+## 5. When nothing arrives: the one-tap check
+
+Account → Reminders has **Send a test notification**. It asks
+`api/push-test.js` to send right now to this account's saved devices, using the
+same keys and server as a real reminder, and it names the stage that fails:
+
+| What it says | What is actually broken |
+| --- | --- |
+| The server is not set up… and names a missing variable | A `VAPID_*` or `SUPABASE_*` variable is missing in Vercel. Add it, then redeploy. |
+| The server has no saved device for this account | `supabase/push.sql` has not been run, RLS rejected the save, or the save failed. Check `select * from public.push_subscriptions;` and run the SQL file. |
+| The push service refused the send (401/403) | `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` are not a pair, or the subject is not a `mailto:`/URL. Generate one pair with `npx web-push generate-vapid-keys` and use both halves. |
+| …gone (410), so it was removed | The browser dropped the subscription. Tap **Try again** above to save a new one. |
+| The server sent the test… but nothing appeared | The keys, the row and the send path all work, so the phone or browser is holding it back: on iPhone it must be the Home Screen app, and iOS chooses when to show a notification (leave MindLoop first). Check the phone's notification settings and Focus. |
+
+The test is sent **directly**, not by the 5-minute schedule. So:
+
+- test arrives, reminders at a priority's start time do not → the schedule is
+the part that is not running. Check `select * from cron.job_run_details order by start_time desc limit 20;` and re-run the `cron.schedule` SQL in section 3.
+- test fails → the problem is before the schedule; fix the row above first.
+
+This is also why Account no longer says "Notifications are on" for a browser
+subscription alone: it now asks the account whether this device's row exists
+(RLS lets a person read their own), so a silently failed save shows as
+"not saved" instead of a promise.
+
 ## Honest limits
 
 - A reminder arrives within 10 minutes of the start time, not at the exact

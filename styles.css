@@ -547,6 +547,9 @@ input[type="number"]:focus {
 .notif-status .notif-action[hidden] {
   display: none;
 }
+.notif-status .notif-test-result {
+  margin-top: 8px;
+}
 /* Three actions per row, so a priority never turns into a wall of buttons. */
 .plan-actions,
 .plan-secondary,

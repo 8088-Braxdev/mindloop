@@ -135,7 +135,10 @@ export function syncPushIfGranted() {
 // What is actually true on this device right now, for the Account line and
 // for anything that has to be honest about closed-app reminders.
 // permission: "default" | "granted" | "denied" | "unsupported"
-// push:       "on" when this device has a live subscription, otherwise "off"
+// saved:      true when the account really has this device's row; false when it
+//             does not; null when the check could not run
+// push:       "on" when this device has a live subscription that the account
+//             has saved, otherwise "off"
 // reason:     why it is off, when push.js knows
 export async function notificationReport() {
   const permission = notificationState();
@@ -145,6 +148,7 @@ export async function notificationReport() {
     installed: isInstalled(),
     iosTab: isIos() && !isInstalled(),
     subscribed: false,
+    saved: null,
     push: "off",
     reason: null,
   };
@@ -153,15 +157,23 @@ export async function notificationReport() {
   if (attempt) await attempt.catch(() => {});
 
   let subscription = null;
+  let saved = null;
   try {
     const push = await import("./push.js");
-    subscription = await push.currentSubscription();
+    const check = await push.subscriptionSaved();
+    subscription = check.subscription;
+    saved = check.saved;
   } catch {
     // Treated as "no subscription" below.
   }
   report.subscribed = !!subscription;
-  if (subscription) {
+  report.saved = saved;
+  if (subscription && saved !== false) {
+    // A row that is confirmed saved is what "on" means; an unreadable check is
+    // not evidence of a problem, so it keeps the previous answer.
     report.push = "on";
+  } else if (subscription) {
+    report.reason = "not-saved";
   } else if (lastResult.ok === false) {
     report.reason = lastResult.reason;
   }
