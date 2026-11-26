@@ -98,39 +98,67 @@ with `CRON_SECRET` set to the same value as `PUSH_CRON_SECRET`.
    10-minute window and no second one afterwards.
 5. Check the send: `select * from public.push_log order by created_at desc limit 5;`
 
-## 5. When nothing arrives: the one-tap check
+## 5. When nothing arrives
 
-Account → Reminders has **Send a test notification**. It asks
-`api/push-test.js` to send right now to this account's saved devices, using the
-same keys and server as a real reminder, and it names the stage that fails:
+Account → Notifications states what is true on the device: allowed or not, and
+whether the account really has this device's row. It never says "Notifications
+are on" for a browser subscription alone, because a permission grants nothing
+if the row is missing. When it does say they are on and nothing arrives, these
+four checks (Supabase → SQL Editor) say which part is quiet.
 
-| What it says | What is actually broken |
-| --- | --- |
-| The server is not set up… and names a missing variable | A `VAPID_*` or `SUPABASE_*` variable is missing in Vercel. Add it, then redeploy. |
-| The server has no saved device for this account | `supabase/push.sql` has not been run, RLS rejected the save, or the save failed. Check `select * from public.push_subscriptions;` and run the SQL file. |
-| The push service refused the send (401/403) | `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` are not a pair, or the subject is not a `mailto:`/URL. Generate one pair with `npx web-push generate-vapid-keys` and use both halves. |
-| …gone (410), so it was removed | The browser dropped the subscription. Tap **Try again** above to save a new one. |
-| The server sent the test… but nothing appeared | The keys, the row and the send path all work, so the phone or browser is holding it back: on iPhone it must be the Home Screen app, and iOS chooses when to show a notification (leave MindLoop first). Check the phone's notification settings and Focus. |
+**1. Is this device saved?**
 
-The test is sent **directly**, not by the 5-minute schedule. So:
+```sql
+select id, user_id, tz, quiet_on, created_at
+from public.push_subscriptions order by created_at desc;
+```
 
-- test arrives, reminders at a priority's start time do not → the schedule is
-the part that is not running. Check `select * from cron.job_run_details order by start_time desc limit 20;` and re-run the `cron.schedule` SQL in section 3.
-- test fails → the problem is before the schedule; fix the row above first.
+No row → run `supabase/push.sql`, then tap **Allow notifications** (or **Try
+again**) on the device. One row per device is normal and expected.
 
-One more difference, and it used to be a trap: the test does not write
-`push_log`, so it reaches every device, while a reminder writes there to avoid
-sending twice. That key was once per task and day only, so with a phone and a
-laptop the first device in the list took the row and every other device was
-skipped — the phone stayed silent while the test rang it. `push_log.task_key`
-now starts with the device id (`<subscription id>#<plan date>#<task index>`), so
-each device gets its own single reminder. Rows written before this fix keep the
-old shape and simply never match again, which is harmless.
+**2. Did the server try to send?**
 
-This is also why Account no longer says "Notifications are on" for a browser
-subscription alone: it now asks the account whether this device's row exists
-(RLS lets a person read their own), so a silently failed save shows as
-"not saved" instead of a promise.
+```sql
+select task_key, fire_date, created_at
+from public.push_log order by created_at desc limit 10;
+```
+
+`task_key` starts with the device id (`<subscription id>#<plan date>#<task
+index>`), so two rows with different prefixes for the same task and day mean
+both devices were served. No row for a task that was due → nothing was sent:
+the priority has no start time, it already has an answer (started, done,
+skipped, postponed), the device's quiet hours covered the moment, or the task
+belongs to a plan day older than yesterday. A row means the push service
+accepted the message; the device, its settings or its connection is what is
+holding it — an offline device receives it on reconnect for up to 12 hours, and
+a subscription the service reports as gone (404/410) is removed by the sender,
+so the app shows **Try again** until it is allowed again.
+
+**3. Is the 5-minute schedule running?**
+
+```sql
+select jobid, jobname, schedule, active from cron.job;
+select status, start_time, return_message
+from cron.job_run_details order by start_time desc limit 10;
+select status_code, content from net._http_response order by id desc limit 5;
+```
+
+No `mindloop-push` job → re-run the `cron.schedule` SQL in section 3. `401` in
+`content` → `PUSH_CRON_SECRET` and the Vault secret are not the same value.
+`500` → a `VAPID_*` or `SUPABASE_*` variable is missing in Vercel. `200` with
+`"sent": 0` → nothing was due at that moment; `"sent": 1` or more → the send
+left the server.
+
+**4. What does the plan say?**
+
+```sql
+select date, priorities from public.entries order by date desc limit 2;
+```
+
+The priority needs a `time`, and none of `doneAt`, `startedAt`, `skippedAt`,
+`postponedAt`. Closed-app reminders are worked out from each device's own time
+zone, so a task planned for "today" on the phone is still due when the sender
+looks at the plan written last night.
 
 ## Honest limits
 

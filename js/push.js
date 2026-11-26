@@ -170,38 +170,6 @@ export async function subscriptionSaved() {
   return { subscription, saved: !!data };
 }
 
-// One test notification, sent by the server to this account's devices right
-// now. It proves the parts the app cannot see by itself: the VAPID keys, the
-// stored row and the push service. It does not prove the 5-minute scheduler
-// runs, so a test that arrives while scheduled reminders do not points at the
-// schedule, not at this device.
-export async function testPush() {
-  if (typeof Notification === "undefined" || Notification.permission !== "granted") {
-    return { ok: false, code: "permission" };
-  }
-  const session = await getSession().catch(() => null);
-  if (!session) return { ok: false, code: "signin" };
-  try {
-    const response = await fetch("api/push-test", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${session.access_token}`,
-      },
-      body: "{}",
-    });
-    const body = await response.json().catch(() => ({}));
-    return {
-      ...body,
-      http: response.status,
-      ok: response.ok && body.status === "ok",
-    };
-  } catch (err) {
-    console.warn("MindLoop: test notification request failed", err);
-    return { ok: false, code: "network" };
-  }
-}
-
 // Quiet hours are a device setting; the server needs the copy for this device.
 export async function syncQuietHours(quiet) {
   if (!quiet) return;
