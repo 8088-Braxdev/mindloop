@@ -4,8 +4,10 @@
 --
 -- push_subscriptions  one row per device that allowed notifications.
 --                     The browser writes its own row; RLS keeps it private.
--- push_log            one row per reminder actually sent, so two runs of the
---                     scheduler can never send the same reminder twice.
+-- push_log            one row per reminder actually sent to one device, so
+--                     two runs of the scheduler can never send the same
+--                     reminder twice. task_key starts with the device id, so a
+--                     phone and a laptop each get their own reminder.
 --                     Server-only: RLS on, no policies.
 
 create table if not exists public.push_subscriptions (
