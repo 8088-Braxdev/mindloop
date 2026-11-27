@@ -43,6 +43,18 @@ export function pushFailure() {
   return lastFailure;
 }
 
+// An upsert is INSERT ... ON CONFLICT DO UPDATE, and Postgres applies the
+// update half to the row that already holds this endpoint. When that row
+// belongs to another account the person cannot see it, so the update fails and
+// Postgres answers "new row violates row-level security policy (USING
+// expression)" — code 42501, the same code a missing grant gives. The words
+// are the only thing that tells the two apart, and they need opposite fixes:
+// this one needs a new endpoint, a missing grant needs SQL.
+function belongsToAnotherAccount(error) {
+  const text = `${error?.message || ""} ${error?.details || ""}`;
+  return /using expression/i.test(text);
+}
+
 // VAPID keys travel as URL-safe base64; the browser wants raw bytes.
 function urlBase64ToUint8Array(value) {
   const padded = (value + "=".repeat((4 - (value.length % 4)) % 4))
@@ -177,6 +189,14 @@ export async function enablePush({ quiet = null, fresh = false } = {}) {
     .upsert(row, { onConflict: "endpoint" });
   if (error) {
     console.warn("MindLoop: push subscription was not saved", error);
+    // This browser's endpoint is already a row for a different account, so no
+    // attempt at this endpoint can ever be saved for this one. A new endpoint
+    // is the only thing that can be stored; replacing it is safe here because
+    // the existing one delivers nothing to this account. Done once, never in a
+    // loop: the retry runs with `fresh`, so a second failure is reported.
+    if (!fresh && belongsToAnotherAccount(error)) {
+      return enablePush({ quiet, fresh: true });
+    }
     return failed("save", errorCode(error));
   }
   lastFailure = null;

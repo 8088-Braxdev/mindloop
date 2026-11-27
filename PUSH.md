@@ -119,13 +119,22 @@ failed, because the states need different fixes:
 | "Notifications are on for this device, and your account has this device saved" | The row exists and reads back | Nothing here; the next checks below are about the sender or the device |
 | "MindLoop has no closed-app subscription on this device yet" | The browser never created one (or a renewal never ran) | Tap **Try again**; if it repeats, the reason after the dash names the step that failed |
 | "this device is not saved to your account — this browser's subscription is already stored for a different account (23505)" | The browser's endpoint is already a row for another account, so this account can never write it | Tap **Try again**: it replaces the subscription with a new endpoint and saves that. Deleting the other account's row is not needed |
-| "the push tables in Supabase do not let this account write to them (42501)" or "do not exist in Supabase yet (42P01)" | PostgreSQL refused the write: the tables are missing, the `authenticated` role has no grant on `push_subscriptions`, or the row failed the insert policy's `user_id = auth.uid()` check | Re-run `supabase/push.sql` (it now adds the grants too), then tap **Try again**. If `42501` comes back, run the grants/policies query below: a missing `INSERT` grant or no insert policy is the cause |
+| "the database refused this device's row (42501): the push tables' rules are missing, or this browser's subscription already belongs to another account" | Two states share PostgreSQL's code `42501`. Either the `authenticated` role has no grant on `push_subscriptions` (the tables exist but the app may not write), or the save used `INSERT ... ON CONFLICT DO UPDATE` and this browser's endpoint is already a row for a **different** account — that row cannot be seen, so Postgres raises "new row violates row-level security policy (USING expression)" instead of `23505` | The second state fixes itself: `js/push.js` recognises those words and re-saves with a new endpoint, so **Try again** is enough — no row has to be deleted by hand. For the first, re-run `supabase/push.sql` (it carries the grants), then **Try again** |
+| "the push tables do not exist in Supabase yet (42P01)" | The tables are missing | Re-run `supabase/push.sql`, then **Try again** |
 | "the signed-in session has expired (PGRST301 / 401)" | The app's token was stale | Reload, sign in again, tap **Try again** |
 | "MindLoop saved this device to your account just now, but the app cannot read that row back" | The write worked but the `select` returned nothing, usually a missing SELECT policy | Re-run `supabase/push.sql` (it recreates the four policies). Until then the line cannot confirm delivery, and reminders may still arrive |
 
 A device can show this line while a reminder still arrives: an older saved row
 keeps working until the push service reports its endpoint gone. That is why the
 line says "cannot confirm" instead of "off" in that case.
+
+The `(USING expression)` variant of `42501` is worth recognising by name: it
+means the browser's endpoint is a row another account owns (the same device was
+signed in as someone else, or the row survived a sign-out). It is not a missing
+grant, and re-running SQL does not touch it; the app replaces the subscription
+on **Try again**, because a new endpoint is the only one this account can save.
+A row for another account is also why the save never answers `23505` there: the
+upsert reaches the existing row and fails on the update half first.
 
 **1. Is this device saved?**
 

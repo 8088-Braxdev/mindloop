@@ -204,9 +204,10 @@ export async function requestNotifications() {
   } else if (notificationState() === "granted") {
     // "Try again": save this device once more. If the browser's own
     // subscription is the thing that cannot be saved — its endpoint already
-    // belongs to another account (23505) — replace it, because only a new
-    // endpoint can be saved. Never done automatically: replacing a working
-    // subscription is a real change, so it follows a real tap.
+    // belongs to another account — replace it, because only a new endpoint can
+    // be saved. js/push.js replaces it itself when the database says so in
+    // words (42501, USING expression), and this line covers the code it reports
+    // instead when the conflict arrives as a plain 23505.
     const result = await syncPush();
     if (result?.reason === "save" && String(result.code || "") === "23505") {
       await syncPush({ fresh: true });
