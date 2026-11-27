@@ -1123,3 +1123,41 @@ export function detectInsightLanguage(rows) {
   if (english > swahili) return "en";
   return null;
 }
+
+/* ---------- Closed-app reminders: what a failed save actually means ---------- */
+
+// js/push.js saves this device's subscription in Supabase, and the database's
+// own error code is the one fact that says why it failed. Kept here (with no
+// DOM and no network) so Account and PUSH.md §5 can name the same thing, and so
+// the mapping is a pure function a test can hold.
+const PUSH_SAVE_CODES = {
+  "23505":
+    "this browser's subscription is already stored for a different account (23505)",
+  "23503": "this account is not in the users table (23503)",
+  "42501":
+    "the push tables in Supabase do not let this account write to them (42501)",
+  "42P01": "the push tables do not exist in Supabase yet (42P01)",
+  PGRST301: "the signed-in session has expired (PGRST301)",
+  "401": "the signed-in session has expired (401)",
+};
+
+// `reason` is what js/push.js last reported; `code` is the database's own code
+// when the save failed. Returns a lowercase clause to finish a sentence, or ""
+// when nothing certain is known — Account then says only what it can prove.
+export function pushFailureText(reason, code = "") {
+  const save = PUSH_SAVE_CODES[String(code || "")];
+  if (reason === "save" && save) return save;
+  const text = {
+    unsupported: "this browser does not support push notifications",
+    permission: "notifications are not allowed",
+    "signed-out": "you are signed out on this device",
+    "no-service-worker": "the service worker is not ready yet",
+    "no-server-key": "MindLoop's push keys are not set up on the server yet",
+    subscribe: "this browser refused a push subscription",
+    incomplete: "this browser returned an incomplete subscription",
+    save: "this device could not be saved to your account",
+    "not-saved": "the account has no saved row for this browser's subscription",
+  }[reason];
+  if (!text) return "";
+  return code ? `${text} (${code})` : text;
+}

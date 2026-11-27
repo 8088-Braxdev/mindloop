@@ -24,7 +24,7 @@ import {
   markPriority,
   reschedulePriority,
 } from "./storage.js";
-import { getCardPlan, toDateKey } from "./logic.js";
+import { getCardPlan, toDateKey, pushFailureText } from "./logic.js";
 import { cachedUserId } from "./auth.js";
 import {
   notificationState,
@@ -256,27 +256,35 @@ function buildNotificationStatus() {
         "Notifications are on for this device, and your account has this device saved. MindLoop sends one reminder when a priority's start time arrives — usually within 10 minutes — even while the app is closed. If this device is offline or asleep at that moment, the push service holds the reminder and delivers it when the connection returns, for up to 12 hours; after that it can be lost, and the reminder card is still waiting inside the app. Delivery also depends on this phone or computer, its notification settings and the browser's push service; on Android, a battery-saving mode or \"Sleeping apps\" can hold notifications from a browser that is not open, so keeping this browser unrestricted is what lets them through.";
       return;
     }
-    if (report.saved === false) {
-      // The browser has a subscription, but the account does not. Saying "on"
-      // here would promise a reminder the server cannot send.
-      action.hidden = false;
-      action.textContent = "Try again";
-      status.textContent =
-        "Notifications are allowed, but this device is not saved to your account, so MindLoop's server has nowhere to send a closed-app reminder. Tap Try again. If it keeps happening, the push tables or keys on the server are not set up (see PUSH.md).";
-      return;
-    }
+    // Everything below is "off", and the three ways of being off need three
+    // different sentences: a device with no subscription at all, a browser
+    // subscription the account cannot store, and a subscription the account
+    // cannot read back. Collapsing them into "not saved" sent the person
+    // looking for the wrong problem.
     action.hidden = false;
     action.textContent = "Try again";
-    const why = {
-      "no-server-key": "MindLoop's push keys are not set up on the server yet",
-      "signed-out": "you are signed out on this device",
-      "no-service-worker": "the service worker is not ready yet",
-      save: "this device could not be saved to your account",
-      subscribe: "this browser refused a push subscription",
-      incomplete: "this browser returned an incomplete subscription",
-      unsupported: "this browser does not support push",
-      permission: "notifications are not allowed",
-    }[report.reason];
+    const why = pushFailureText(report.reason, report.code);
+
+    if (report.subscribed && report.saved === false) {
+      if (report.save === "ok") {
+        // The write succeeded this session, so the row exists; only the read
+        // came back empty. Promising nothing and blaming the device would both
+        // be wrong, so this says exactly that.
+        status.textContent =
+          "MindLoop saved this device to your account just now, but the app cannot read that row back — the push table's read policy is probably blocking it — so this line cannot confirm closed-app reminders. They may still arrive. Tap Try again; if this stays the same, run the select in PUSH.md §5.";
+        return;
+      }
+      status.textContent = `Notifications are allowed, but this device is not saved to your account, so MindLoop's server has nowhere to send a closed-app reminder${why ? ` — ${why}` : ""}. Tap Try again.`;
+      return;
+    }
+
+    if (!report.subscribed) {
+      // No subscription exists yet: saying "this device is not saved" would
+      // describe a row that was never created, not a save that failed.
+      status.textContent = `Notifications are allowed for this browser, but MindLoop has no closed-app subscription on this device yet, so the server has nowhere to send a reminder${why ? ` — ${why}` : ""}. Tap Try again.`;
+      return;
+    }
+
     status.textContent = `Notifications are allowed for MindLoop, but closed-app reminders are not working on this device${why ? ` — ${why}` : ""}. Reminders appear inside the app only while it is open.`;
   };
 

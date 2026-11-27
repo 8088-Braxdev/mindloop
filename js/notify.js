@@ -98,14 +98,16 @@ function readQuiet() {
 }
 
 let attempt = null;
-let lastResult = { ok: null, reason: null };
+let lastResult = { ok: null, reason: null, code: "" };
 
 // Creates or refreshes this device's closed-app subscription. One attempt at a
 // time; every caller sees the same result instead of racing three upserts.
-export function syncPush() {
+// `options.fresh` replaces a subscription the account could never save (see
+// js/push.js); only a real tap asks for that.
+export function syncPush(options = {}) {
   if (attempt) return attempt;
   attempt = import("./push.js")
-    .then((push) => push.enablePush({ quiet: readQuiet() }))
+    .then((push) => push.enablePush({ quiet: readQuiet(), ...options }))
     .then((result) => {
       lastResult = result;
       if (!result?.ok) {
@@ -117,7 +119,7 @@ export function syncPush() {
       return result;
     })
     .catch((err) => {
-      lastResult = { ok: false, reason: "error" };
+      lastResult = { ok: false, reason: "error", code: "" };
       console.warn("MindLoop: closed-app reminders unavailable", err);
       return lastResult;
     })
@@ -137,9 +139,14 @@ export function syncPushIfGranted() {
 // permission: "default" | "granted" | "denied" | "unsupported"
 // saved:      true when the account really has this device's row; false when it
 //             does not; null when the check could not run
+// save:       "ok" when the last save this session reported success, "failed"
+//             when it reported an error, "unknown" before any attempt — a save
+//             that worked and a row that cannot be read back are different
+//             facts, and Account must not mix them
 // push:       "on" when this device has a live subscription that the account
 //             has saved, otherwise "off"
 // reason:     why it is off, when push.js knows
+// code:       the database's own error code, when the save failed
 export async function notificationReport() {
   const permission = notificationState();
   const report = {
@@ -149,8 +156,10 @@ export async function notificationReport() {
     iosTab: isIos() && !isInstalled(),
     subscribed: false,
     saved: null,
+    save: lastResult.ok === true ? "ok" : lastResult.ok === false ? "failed" : "unknown",
     push: "off",
     reason: null,
+    code: lastResult.code || "",
   };
   if (permission !== "granted") return report;
 
@@ -176,6 +185,7 @@ export async function notificationReport() {
     report.reason = "not-saved";
   } else if (lastResult.ok === false) {
     report.reason = lastResult.reason;
+    report.code = lastResult.code || "";
   }
   return report;
 }
@@ -192,7 +202,15 @@ export async function requestNotifications() {
       console.warn("MindLoop: notification permission failed", err);
     }
   } else if (notificationState() === "granted") {
-    await syncPush();
+    // "Try again": save this device once more. If the browser's own
+    // subscription is the thing that cannot be saved — its endpoint already
+    // belongs to another account (23505) — replace it, because only a new
+    // endpoint can be saved. Never done automatically: replacing a working
+    // subscription is a real change, so it follows a real tap.
+    const result = await syncPush();
+    if (result?.reason === "save" && String(result.code || "") === "23505") {
+      await syncPush({ fresh: true });
+    }
   }
   announce();
   return notificationReport();
