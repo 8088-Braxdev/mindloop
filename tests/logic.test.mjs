@@ -353,9 +353,12 @@ test("writing that says nothing about language leaves it open", () => {
 test("a failed push save names the database reason it was given", () => {
   // Account must not blame the device for a table that does not exist, nor
   // promise a fix the person cannot make. The code decides the sentence.
+  // 42501 covers two different states — missing grants and an endpoint that
+  // already belongs to another account — so the sentence names both instead of
+  // promising one cause the person cannot check.
   assert.match(
     pushFailureText("save", "42501"),
-    /do not let this account write to them \(42501\)/,
+    /refused this device's row \(42501\).*rules are missing.*belongs to another account/,
   );
   assert.match(pushFailureText("save", "42P01"), /do not exist .*\(42P01\)/);
   assert.match(

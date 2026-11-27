@@ -1135,7 +1135,7 @@ const PUSH_SAVE_CODES = {
     "this browser's subscription is already stored for a different account (23505)",
   "23503": "this account is not in the users table (23503)",
   "42501":
-    "the push tables in Supabase do not let this account write to them (42501)",
+    "the database refused this device's row (42501): the push tables' rules are missing, or this browser's subscription already belongs to another account",
   "42P01": "the push tables do not exist in Supabase yet (42P01)",
   PGRST301: "the signed-in session has expired (PGRST301)",
   "401": "the signed-in session has expired (401)",
