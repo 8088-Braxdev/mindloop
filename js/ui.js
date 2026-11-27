@@ -251,8 +251,8 @@ const STATUS_TEXT = {
   postponed: "Postponed",
 };
 
-// "Nimeanza — Start" becomes "Nimeanza" under the icon on a phone; the full
-// wording still lives in .btn-label, aria-label and data-tip.
+// "Remind me later (15 min)" becomes "Remind me later" under the icon on a
+// phone; the full wording still lives in .btn-label, aria-label and data-tip.
 function captionFor(label) {
   return label.split("—")[0].split("(")[0].trim() || label;
 }

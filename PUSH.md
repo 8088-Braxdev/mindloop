@@ -125,7 +125,23 @@ from public.push_log order by created_at desc limit 10;
 
 `task_key` starts with the device id (`<subscription id>#<plan date>#<task
 index>`), so two rows with different prefixes for the same task and day mean
-both devices were served. No row for a task that was due → nothing was sent:
+both devices were served. This tells you which device is which, and whether it
+was served today:
+
+```sql
+select s.id as device, s.tz, s.created_at,
+       count(l.task_key) as reminders_logged
+from public.push_subscriptions s
+left join public.push_log l
+  on l.task_key like s.id || '#%' and l.fire_date = current_date
+group by s.id, s.tz, s.created_at
+order by s.created_at;
+```
+
+`reminders_logged = 0` on a device that was due means the sender never sent to
+it: it was inside that device's quiet hours, its plan had no unanswered
+priority with a time, or the run that covered the moment did not happen. A row
+means the push service accepted the message. No row for a task that was due → nothing was sent:
 the priority has no start time, it already has an answer (started, done,
 skipped, postponed), the device's quiet hours covered the moment, or the task
 belongs to a plan day older than yesterday. A row means the push service
@@ -171,6 +187,13 @@ looks at the plan written last night.
   service; the card in the app still shows the unanswered priority.
 - A phone that is off, or has the app's notifications blocked, gets no push. The
   card is still there when the app opens.
+- On Android, a battery-saving mode, "Sleeping apps", Data Saver or the
+  browser's own background restriction can hold or drop notifications from a
+  browser that is not open. MindLoop and the server cannot change that from the
+  web: the browser app has to be left unrestricted, with notifications and
+  background data allowed, in the phone's settings. When the account line says
+  reminders are on and they still do not arrive on that phone, this is the
+  first thing to check.
 - The notification words are English, like the rest of the app: "Time to start"
   (or "Heads-up: starting soon" with a lead), the task's own words, and its
   start time. A finish-time heads-up reads "Your finish time has arrived".
