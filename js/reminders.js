@@ -253,7 +253,7 @@ function buildNotificationStatus() {
       // Nothing left to tap: a button here would read like a problem.
       action.hidden = true;
       status.textContent =
-        "Notifications are on for this device, and your account has this device saved. MindLoop sends one reminder when a priority's start time arrives — usually within 10 minutes — even while the app is closed. If this device is offline or asleep at that moment, the push service holds the reminder and delivers it when the connection returns, for up to 12 hours; after that it can be lost, and the reminder card is still waiting inside the app. Delivery also depends on this phone or computer, its notification settings and the browser's push service.";
+        "Notifications are on for this device, and your account has this device saved. MindLoop sends one reminder when a priority's start time arrives — usually within 10 minutes — even while the app is closed. If this device is offline or asleep at that moment, the push service holds the reminder and delivers it when the connection returns, for up to 12 hours; after that it can be lost, and the reminder card is still waiting inside the app. Delivery also depends on this phone or computer, its notification settings and the browser's push service; on Android, a battery-saving mode or \"Sleeping apps\" can hold notifications from a browser that is not open, so keeping this browser unrestricted is what lets them through.";
       return;
     }
     if (report.saved === false) {
@@ -564,8 +564,8 @@ function wireActions(actions, secondary, item, sourceDate, id) {
     b.className = "plan-btn";
     b.setAttribute("aria-label", label);
     b.dataset.tip = label;
-    // The phone shows a short caption ("Nimeanza", "Badilisha muda") instead
-    // of the full bilingual label, which is too long for three per row.
+    // The phone shows a short caption ("Start", "Change start time") instead
+    // of the full label, which is too long for three per row.
     const caption = label.split("—")[0].split("(")[0].trim() || label;
     b.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg><span class="btn-label">${label}</span><span class="btn-caption">${caption}</span>`;
     b.addEventListener("click", onClick);
@@ -574,11 +574,11 @@ function wireActions(actions, secondary, item, sourceDate, id) {
 
   // The two answers to the reminder itself.
   actions.replaceChildren(
-    btn("i-play", "Nimeanza — Start", () => {
+    btn("i-play", "Start", () => {
       act(markPriority(sourceDate, item.index, "startedAt"));
       hideCard();
     }),
-    btn("i-check", "Nimekamilisha", () => {
+    btn("i-check", "Mark done", () => {
       act(markPriority(sourceDate, item.index, "doneAt"));
       hideCard();
     }),
@@ -586,7 +586,7 @@ function wireActions(actions, secondary, item, sourceDate, id) {
 
   // Plan moves: quieter, below the answers, each with its own words.
   secondary.replaceChildren(
-    btn("i-help", "Nimekwama", () => {
+    btn("i-help", "I'm stuck", () => {
       // Spec §6: stuck opens Rescue Mode, it does not postpone the task.
       import("./rescue.js")
         .then((rescue) => {
@@ -597,7 +597,7 @@ function wireActions(actions, secondary, item, sourceDate, id) {
           console.error("MindLoop: rescue module failed to load", err);
         });
     }),
-    btn("i-clock", "Nikumbushe baadaye (15 min)", () => {
+    btn("i-clock", "Remind me later (15 min)", () => {
       const s = readStore();
       s[id] = {
         ...s[id],
@@ -607,9 +607,9 @@ function wireActions(actions, secondary, item, sourceDate, id) {
       writeStore(s);
       hideCard();
     }),
-    btn("i-calendar", "Badilisha muda", async () => {
+    btn("i-calendar", "Change start time", async () => {
       const time = await askStartTime({
-        title: "Badilisha muda wa kuanza",
+        title: "Change start time",
         text: item.text,
         time: item.time || "",
       });
