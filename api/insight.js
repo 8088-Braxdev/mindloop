@@ -103,12 +103,21 @@ function entriesJson(rows) {
   }
 }
 
+// Naming the language is not enough. A model tends to answer in the right
+// language but in English-shaped sentences, with English words left in and the
+// app's own vocabulary borrowed instead of translated, and a native reader sees
+// a translation rather than an answer. This is the rule that asks for the
+// language the person would actually write, and it is added to every language
+// rule except English, which is already the model's own shape.
+const NATIVE_VOICE =
+  "Write it the way a careful native speaker of that language writes: its own word order, its own idioms, and the plain, professional register of a well-edited newspaper. Do not render an English sentence word for word, do not leave English words inside a sentence that is not English, and do not borrow them when the language has its own word — a reader should find nothing awkward and nothing that looks like a translation.";
+
 const LANGUAGE_RULES = {
-  sw: "7. The person wrote these reviews in Swahili. Write EVERY text value (headline, went_well, pattern, suggestion, data_note) in Swahili. The dates and the JSON keys are English only because the app is English: they do not change the language of the answer, and English text is not an acceptable answer.",
+  sw: `7. The person wrote these reviews in Swahili. Write EVERY text value (headline, went_well, pattern, suggestion, data_note) in Swahili. ${NATIVE_VOICE} Swahili is not a translation of this English app: a teacher reading the answer should find natural Swahili, correct agreement, and no English word standing in for a Swahili one. The dates and the JSON keys are English only because the app is English: they do not change the language of the answer, and English text is not an acceptable answer.`,
   en: "7. The person wrote these reviews in English. Write EVERY text value (headline, went_well, pattern, suggestion, data_note) in English. The dates and the JSON keys are English too; they are the app's words, not evidence about the person's language.",
   // No language is off limits: the model reads the person's own words and
   // answers in whatever language they are actually in.
-  auto: "7. The person may write in ANY language, so never assume English. Read ENTRIES and work out which language the person wrote most of their own words in; it can be any language at all (for example French, Spanish, Portuguese, German, Italian, Dutch, Arabic, Hindi, Chinese, Japanese, Korean, Russian, Turkish, Indonesian, Polish, Swahili). Write EVERY text value (headline, went_well, pattern, suggestion, data_note) in exactly that language, and never translate the answer into English. The dates, the JSON keys and the English labels in FACTS (\"done\", \"not done\", \"low energy\", \"none\") are the app's words, not the person's: they are not evidence that the person writes English. Only when the entries hold too little writing to tell the language, answer in English.",
+  auto: `7. The person may write in ANY language, so never assume English. Read ENTRIES and work out which language the person wrote most of their own words in; it can be any language at all (for example French, Spanish, Portuguese, German, Italian, Dutch, Arabic, Hindi, Chinese, Japanese, Korean, Russian, Turkish, Indonesian, Polish, Swahili). Write EVERY text value (headline, went_well, pattern, suggestion, data_note) in exactly that language, and never translate the answer into English. ${NATIVE_VOICE} The dates, the JSON keys and the English labels in FACTS (\"done\", \"not done\", \"low energy\", \"none\") are the app's words, not the person's: they are not evidence that the person writes English. Only when the entries hold too little writing to tell the language, answer in English.`,
 };
 
 function languageRule(language) {
