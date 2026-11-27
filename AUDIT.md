@@ -2,8 +2,9 @@
 
 Static review of this repository (master at the start of this change). It
 records what the code does, not what a live deployment was tested to do.
-Database policies (RLS), the live Supabase schema and hosted notifications
-were **not** inspected from here and are marked for investigation.
+Database policies (RLS) and the live Supabase schema were **not** inspected
+from here and are marked for investigation. Hosted notifications were verified
+on real devices — see note 3.
 
 | Spec area | Status | Evidence / notes |
 | --- | --- | --- |
@@ -40,7 +41,15 @@ were **not** inspected from here and are marked for investigation.
    before claiming the delete paths are safe.
 2. Phase 5 (pattern coach, growth timeline, talk to progress) should reuse
    `windowStats` and `weeklyReport` so every surface uses the same formulas.
-3. Closed-app push is built but unverified on a live deployment: it needs the
-   `VAPID_*` variables, `supabase/push.sql` and a running `pg_cron` job, none of
-   which can be inspected from the repository. The in-app test narrows a
-   failure to one stage; the scheduler still needs the SQL checks in PUSH.md.
+3. Closed-app push now delivers on a live deployment: reminders arrived on an
+   Android phone and on a Windows PC, with Account confirming each device's row
+   in `push_subscriptions`, so `VAPID_*`, `supabase/push.sql` and the `pg_cron`
+   job are all in place. Two device-side states were found and fixed on the way:
+   a save that answered `42501` because this browser's endpoint was already a
+   row for another account (an upsert fails on its update half with "(USING
+   expression)" rather than `23505`, and the app now replaces that
+   subscription), and an Infinix phone that held the notification until Android
+   allowed it — battery and "Sleeping apps" settings, which the web app cannot
+   change. Still unverified: nothing here proves delivery on a phone whose
+   restrictions are set differently, and a screen-reader pass and a second
+   account's RLS check remain for a person.
