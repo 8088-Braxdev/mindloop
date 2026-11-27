@@ -51,6 +51,13 @@ create policy "push_subscriptions_delete_own" on public.push_subscriptions
   for delete to authenticated
   using (user_id = (select auth.uid()));
 
+-- The four policies decide which rows the app may touch; they cannot help a
+-- role that is not allowed to touch the table at all. A table created outside
+-- the dashboard's default privileges answers 42501 (permission denied) for
+-- every save, so the grants are repeated here: re-running this file must be
+-- enough to fix that state, not only the policies.
+grant select, insert, update, delete on public.push_subscriptions to authenticated;
+
 create table if not exists public.push_log (
   id bigint generated always as identity primary key,
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -64,6 +71,9 @@ create index if not exists push_log_user_id_idx on public.push_log (user_id);
 
 alter table public.push_log enable row level security;
 -- No policies on purpose: only the service role (api/push-send.js) may touch it.
+-- Nothing is granted to anon or authenticated, so the app cannot read or write
+-- the log from the browser.
+revoke all on public.push_log from anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Optional: prune the log after 90 days (keeps it small forever).

@@ -20,7 +20,10 @@ How the parts fit:
 
 Open Supabase → SQL Editor and run the whole of `supabase/push.sql`.
 It creates both tables, the four `entries`-style policies for
-`push_subscriptions`, and RLS-with-no-policies for `push_log`.
+`push_subscriptions`, the `authenticated` grants those policies need (a
+missing grant is a `42501` on every save), and RLS-with-no-policies for
+`push_log`. The file is idempotent: running it again on a working database
+changes nothing, and running it on a half-made one finishes the job.
 
 ## 2. VAPID keys
 
@@ -116,7 +119,7 @@ failed, because the states need different fixes:
 | "Notifications are on for this device, and your account has this device saved" | The row exists and reads back | Nothing here; the next checks below are about the sender or the device |
 | "MindLoop has no closed-app subscription on this device yet" | The browser never created one (or a renewal never ran) | Tap **Try again**; if it repeats, the reason after the dash names the step that failed |
 | "this device is not saved to your account — this browser's subscription is already stored for a different account (23505)" | The browser's endpoint is already a row for another account, so this account can never write it | Tap **Try again**: it replaces the subscription with a new endpoint and saves that. Deleting the other account's row is not needed |
-| "the push tables in Supabase do not let this account write to them (42501)" or "do not exist in Supabase yet (42P01)" | Grants or tables are missing | Re-run `supabase/push.sql`, then tap **Try again** |
+| "the push tables in Supabase do not let this account write to them (42501)" or "do not exist in Supabase yet (42P01)" | PostgreSQL refused the write: the tables are missing, the `authenticated` role has no grant on `push_subscriptions`, or the row failed the insert policy's `user_id = auth.uid()` check | Re-run `supabase/push.sql` (it now adds the grants too), then tap **Try again**. If `42501` comes back, run the grants/policies query below: a missing `INSERT` grant or no insert policy is the cause |
 | "the signed-in session has expired (PGRST301 / 401)" | The app's token was stale | Reload, sign in again, tap **Try again** |
 | "MindLoop saved this device to your account just now, but the app cannot read that row back" | The write worked but the `select` returned nothing, usually a missing SELECT policy | Re-run `supabase/push.sql` (it recreates the four policies). Until then the line cannot confirm delivery, and reminders may still arrive |
 
@@ -133,6 +136,27 @@ from public.push_subscriptions order by created_at desc;
 
 No row → run `supabase/push.sql`, then tap **Allow notifications** (or **Try
 again**) on the device. One row per device is normal and expected.
+
+If the save itself answered `42501`, this query shows which half is missing —
+the role's grants or the four policies. `authenticated` needs `INSERT`,
+`SELECT`, `UPDATE` and `DELETE` plus four policy rows (`INSERT`, `SELECT`,
+`UPDATE`, `DELETE`):
+
+```sql
+select 'grant' as kind, grantee as who, privilege_type as what
+from information_schema.role_table_grants
+where table_schema = 'public' and table_name = 'push_subscriptions'
+union all
+select 'policy', policyname, cmd
+from pg_policies
+where schemaname = 'public' and tablename = 'push_subscriptions'
+order by 1, 2, 3;
+```
+
+No `grant` rows for `authenticated`, or fewer than four `policy` rows → re-run
+`supabase/push.sql` (it is safe to repeat) and tap **Try again**. Everything
+present and the save still answers `42501` → the row's `user_id` does not match
+the signed-in session: sign out, sign in again, then **Try again**.
 
 **2. Did the server try to send?**
 
