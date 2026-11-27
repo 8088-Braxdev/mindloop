@@ -106,6 +106,24 @@ are on" for a browser subscription alone, because a permission grants nothing
 if the row is missing. When it does say they are on and nothing arrives, these
 four checks (Supabase → SQL Editor) say which part is quiet.
 
+### What the Account line means
+
+The line names the actual state, and the database's own error code when a save
+failed, because the states need different fixes:
+
+| The line says | What is true | What fixes it |
+| --- | --- | --- |
+| "Notifications are on for this device, and your account has this device saved" | The row exists and reads back | Nothing here; the next checks below are about the sender or the device |
+| "MindLoop has no closed-app subscription on this device yet" | The browser never created one (or a renewal never ran) | Tap **Try again**; if it repeats, the reason after the dash names the step that failed |
+| "this device is not saved to your account — this browser's subscription is already stored for a different account (23505)" | The browser's endpoint is already a row for another account, so this account can never write it | Tap **Try again**: it replaces the subscription with a new endpoint and saves that. Deleting the other account's row is not needed |
+| "the push tables in Supabase do not let this account write to them (42501)" or "do not exist in Supabase yet (42P01)" | Grants or tables are missing | Re-run `supabase/push.sql`, then tap **Try again** |
+| "the signed-in session has expired (PGRST301 / 401)" | The app's token was stale | Reload, sign in again, tap **Try again** |
+| "MindLoop saved this device to your account just now, but the app cannot read that row back" | The write worked but the `select` returned nothing, usually a missing SELECT policy | Re-run `supabase/push.sql` (it recreates the four policies). Until then the line cannot confirm delivery, and reminders may still arrive |
+
+A device can show this line while a reminder still arrives: an older saved row
+keeps working until the push service reports its endpoint gone. That is why the
+line says "cannot confirm" instead of "off" in that case.
+
 **1. Is this device saved?**
 
 ```sql

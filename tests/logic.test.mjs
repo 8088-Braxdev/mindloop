@@ -16,6 +16,7 @@ import {
   plannedMinutes,
   addMinutesToTime,
   detectInsightLanguage,
+  pushFailureText,
 } from "../js/logic.js";
 
 const NOW = new Date(2026, 10, 8, 12, 0, 0); // Sunday 8 November 2026, noon
@@ -347,4 +348,30 @@ test("writing that says nothing about language leaves it open", () => {
     ]),
     null,
   );
+});
+
+test("a failed push save names the database reason it was given", () => {
+  // Account must not blame the device for a table that does not exist, nor
+  // promise a fix the person cannot make. The code decides the sentence.
+  assert.match(
+    pushFailureText("save", "42501"),
+    /do not let this account write to them \(42501\)/,
+  );
+  assert.match(pushFailureText("save", "42P01"), /do not exist .*\(42P01\)/);
+  assert.match(
+    pushFailureText("save", "23505"),
+    /already stored for a different account \(23505\)/,
+  );
+  assert.match(pushFailureText("save", "PGRST301"), /session has expired/);
+});
+
+test("a push failure with no known code stays general instead of guessing", () => {
+  assert.equal(pushFailureText("save", ""), "this device could not be saved to your account");
+  assert.equal(pushFailureText("save", "XX000"), "this device could not be saved to your account (XX000)");
+  assert.equal(
+    pushFailureText("no-server-key"),
+    "MindLoop's push keys are not set up on the server yet",
+  );
+  assert.equal(pushFailureText(null, ""), "");
+  assert.equal(pushFailureText(undefined, "42501"), "");
 });

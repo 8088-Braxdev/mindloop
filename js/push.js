@@ -22,12 +22,21 @@ import { getSession } from "./auth.js";
 const TABLE = "push_subscriptions";
 const KEY_URL = "api/push-key";
 
-// Why the last attempt failed, if it did (js/notify.js shows this).
+// Why the last attempt failed, if it did (js/notify.js shows this). The
+// database's own code is kept too: it is the only fact that tells "the tables
+// are not set up" apart from "this endpoint already belongs to another
+// account", and the two need different words.
 let lastFailure = null;
 
-function failed(reason) {
-  lastFailure = reason;
-  return { ok: false, reason };
+function failed(reason, code = "") {
+  lastFailure = { reason, code: String(code || "") };
+  return { ok: false, reason, code: lastFailure.code };
+}
+
+// PostgREST answers with a string code ("42501", "42P01", "23505",
+// "PGRST301"); a bare status is the fallback when only that arrived.
+function errorCode(error) {
+  return String(error?.code || error?.status || "");
 }
 
 export function pushFailure() {
@@ -90,7 +99,13 @@ export async function currentSubscription() {
 // Creates or refreshes this device's subscription. Safe to call on every app
 // start: it reuses an existing subscription and only rewrites its row, which
 // keeps the stored time zone and quiet hours current.
-export async function enablePush({ quiet = null } = {}) {
+//
+// `fresh` replaces the subscription instead of reusing it. Only one situation
+// calls for that: the endpoint is already stored for a different account
+// (23505), so this account can never save it — a new endpoint is the only thing
+// that can be saved. Account asks for it from a real tap (js/notify.js), never
+// on its own, because replacing a working subscription is a real change.
+export async function enablePush({ quiet = null, fresh = false } = {}) {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
     return failed("unsupported");
   }
@@ -106,6 +121,24 @@ export async function enablePush({ quiet = null } = {}) {
   let subscription = await registration.pushManager
     .getSubscription()
     .catch(() => null);
+  if (fresh && subscription) {
+    const stale = subscription.endpoint;
+    try {
+      await subscription.unsubscribe();
+    } catch {
+      // The browser may already have dropped it.
+    }
+    // Its row is the one this account could not write; drop it so the sender
+    // does not keep a dead endpoint (RLS deletes only the person's own rows).
+    const { error: dropError } = await supabase
+      .from(TABLE)
+      .delete()
+      .eq("endpoint", stale);
+    if (dropError) {
+      console.warn("MindLoop: old push row was not removed", dropError);
+    }
+    subscription = null;
+  }
   if (!subscription) {
     const publicKey = await fetchPublicKey();
     if (!publicKey) return failed("no-server-key"); // not set up on the server yet
@@ -144,7 +177,7 @@ export async function enablePush({ quiet = null } = {}) {
     .upsert(row, { onConflict: "endpoint" });
   if (error) {
     console.warn("MindLoop: push subscription was not saved", error);
-    return failed("save");
+    return failed("save", errorCode(error));
   }
   lastFailure = null;
   return { ok: true, endpoint: json.endpoint };
@@ -158,6 +191,8 @@ export async function enablePush({ quiet = null } = {}) {
 export async function subscriptionSaved() {
   const subscription = await currentSubscription();
   if (!subscription?.endpoint) return { subscription: null, saved: false };
+  // `saved: false` here means the row could not be found, not that the browser
+  // has nothing: Account words the two differently.
   const { data, error } = await supabase
     .from(TABLE)
     .select("id")
